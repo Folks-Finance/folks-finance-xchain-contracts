@@ -1,0 +1,47 @@
+# editors
+.vscode
+.idea
+*.iml
+
+# coverage
+coverage
+*.lcov
+
+# dependency directories
+node_modules/
+
+# dotenv environment variable files
+.env
+.env.development.local
+.env.test.local
+.env.production.local
+.env.local
+
+# compiler files
+artifacts/
+cache/
+cache_hardhat/
+cache_forge/
+out/
+
+# other
+.openzeppelin/
+typechain-types/
+ts-scripts/ethers-contracts
+node_modules
+.env
+
+# Hardhat files
+/cache
+/artifacts
+
+# TypeChain files
+/typechain
+/typechain-types
+
+# solidity-coverage files
+/coverage
+/coverage.json
+
+# Hardhat Ignition default folder for deployments against a local node
+ignition/deployments/chain-31337

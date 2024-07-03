@@ -1,0 +1,48 @@
+// SPDX-License-Identifier: BUSL-1.1
+pragma solidity ^0.8.19;
+
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "../bridge/interfaces/IBridgeRouter.sol";
+import "../bridge/libraries/Messages.sol";
+import "./interfaces/IAddressOracle.sol";
+import "./SpokeToken.sol";
+
+contract SpokeErc20Token is SpokeToken {
+    address public immutable token;
+
+    constructor(
+        address admin,
+        IBridgeRouter bridgeRouter,
+        uint16 hubChainId,
+        bytes32 hubContractAddress,
+        IAddressOracle addressOracle,
+        BucketConfig memory bucketConfig,
+        uint8 poolId,
+        address token_
+    ) SpokeToken(admin, bridgeRouter, hubChainId, hubContractAddress, addressOracle, bucketConfig, poolId) {
+        token = token_;
+    }
+
+    function _receiveToken(
+        Messages.MessageParams memory,
+        uint256 amount
+    ) internal override returns (bytes memory extraArgs, uint256 feeAmount) {
+        // transfer tokens from sender to this spoke
+        SafeERC20.safeTransferFrom(IERC20(token), msg.sender, address(this), amount);
+
+        // not bridging token
+        extraArgs = "";
+
+        // all value passed is available to be used
+        feeAmount = msg.value;
+    }
+
+    function _sendToken(address recipient, uint256 amount) internal override {
+        SafeERC20.safeTransfer(IERC20(token), recipient, amount);
+    }
+
+    function _minLimit() internal view override returns (uint256) {
+        return IERC20(token).balanceOf(address(this)) / 100;
+    }
+}
