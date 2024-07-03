@@ -4,9 +4,8 @@ import { ethers } from "hardhat";
 import { MockConstantPriceAndTimestampNode, NodeManager } from "../../../typechain-types";
 import NodeType from "../assets/NodeType";
 import { deployNodeManagerFixture } from "../bootstrap";
-import { NodeManagerUtil } from "../utils/nodeManagerUtils";
+import { NodeDefinitionData, NodeManagerUtil } from "../utils/nodeManagerUtils";
 import { abi, getOracleNodeId } from "../utils/utils";
-import { NodeDefinition } from "../../../scripts/utils/priceNodes";
 
 describe("StalenessCircuitBreakerNode", async function () {
   let nodeManager: NodeManager;
@@ -66,7 +65,7 @@ describe("StalenessCircuitBreakerNode", async function () {
       const stalenessTolerance = 3 * 60 * 60;
       const encodedParams = abi.encode(["uint256"], [stalenessTolerance.toString()]);
       const parentNodeIds = [externalP22TS1HNodeId, externalP42TS2HNodeId];
-      const nodeDefinition: NodeDefinition = [NodeType.STALENESS_CIRCUIT_BREAKER, encodedParams, parentNodeIds];
+      const nodeDefinition: NodeDefinitionData = [NodeType.STALENESS_CIRCUIT_BREAKER, encodedParams, parentNodeIds];
       const nodeId = getOracleNodeId(...nodeDefinition);
 
       const registerTxn = await nodeManager.registerNode(...nodeDefinition);
@@ -80,7 +79,7 @@ describe("StalenessCircuitBreakerNode", async function () {
     it("Should emit InvalidNodeDefinition cause parameters length is not 32", async function () {
       const encodedParams = "0x00";
       const parentNodeIds = [externalP22TS1HNodeId, externalP42TS2HNodeId];
-      const nodeDefinition: NodeDefinition = [NodeType.STALENESS_CIRCUIT_BREAKER, encodedParams, parentNodeIds];
+      const nodeDefinition: NodeDefinitionData = [NodeType.STALENESS_CIRCUIT_BREAKER, encodedParams, parentNodeIds];
 
       const registerTxn = nodeManager.registerNode(...nodeDefinition);
 
@@ -90,7 +89,7 @@ describe("StalenessCircuitBreakerNode", async function () {
     it("Should emit InvalidNodeDefinition cause has no parent node", async function () {
       const stalenessTolerance = 1e18;
       const encodedParams = abi.encode(["uint256"], [stalenessTolerance.toString()]);
-      const nodeDefinition: NodeDefinition = [NodeType.STALENESS_CIRCUIT_BREAKER, encodedParams, []];
+      const nodeDefinition: NodeDefinitionData = [NodeType.STALENESS_CIRCUIT_BREAKER, encodedParams, []];
 
       const registerTxn = nodeManager.registerNode(...nodeDefinition);
 
@@ -101,7 +100,7 @@ describe("StalenessCircuitBreakerNode", async function () {
       const fakeParent = ethers.encodeBytes32String("FakeParent");
       const stalenessTolerance = 1e18;
       const encodedParams = abi.encode(["uint256"], [stalenessTolerance.toString()]);
-      const nodeDefinition: NodeDefinition = [
+      const nodeDefinition: NodeDefinitionData = [
         NodeType.STALENESS_CIRCUIT_BREAKER,
         encodedParams,
         [externalP22TS1HNodeId, externalP42TS2HNodeId, fakeParent],
@@ -123,7 +122,7 @@ describe("StalenessCircuitBreakerNode", async function () {
         stalenessTolerance = 1e18;
         const encodedParams = abi.encode(["uint256"], [stalenessTolerance.toString()]);
         parentNodeIds = [externalP22TS1HNodeId, externalP42TS2HNodeId];
-        const nodeDefinition: NodeDefinition = [NodeType.STALENESS_CIRCUIT_BREAKER, encodedParams, parentNodeIds];
+        const nodeDefinition: NodeDefinitionData = [NodeType.STALENESS_CIRCUIT_BREAKER, encodedParams, parentNodeIds];
         nodeId = getOracleNodeId(...nodeDefinition);
 
         const registerTxn = await nodeManager.registerNode(...nodeDefinition);
@@ -137,7 +136,7 @@ describe("StalenessCircuitBreakerNode", async function () {
         stalenessTolerance = 0;
         const encodedParams = abi.encode(["uint256"], [stalenessTolerance.toString()]);
         parentNodeIds = [externalP22TS1HNodeId, externalP42TS2HNodeId];
-        const nodeDefinition: NodeDefinition = [NodeType.STALENESS_CIRCUIT_BREAKER, encodedParams, parentNodeIds];
+        const nodeDefinition: NodeDefinitionData = [NodeType.STALENESS_CIRCUIT_BREAKER, encodedParams, parentNodeIds];
         nodeId = getOracleNodeId(...nodeDefinition);
 
         const registerTxn = await nodeManager.registerNode(...nodeDefinition);
@@ -151,7 +150,7 @@ describe("StalenessCircuitBreakerNode", async function () {
         stalenessTolerance = 0;
         const encodedParams = abi.encode(["uint256"], [stalenessTolerance.toString()]);
         parentNodeIds = [externalP22TS1HNodeId];
-        const nodeDefinition: NodeDefinition = [NodeType.STALENESS_CIRCUIT_BREAKER, encodedParams, parentNodeIds];
+        const nodeDefinition: NodeDefinitionData = [NodeType.STALENESS_CIRCUIT_BREAKER, encodedParams, parentNodeIds];
         nodeId = getOracleNodeId(...nodeDefinition);
 
         const registerTxn = await nodeManager.registerNode(...nodeDefinition);
