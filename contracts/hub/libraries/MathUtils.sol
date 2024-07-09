@@ -354,9 +354,11 @@ library MathUtils {
         uint256 totalStableDebt,
         uint256 averageBorrowStableRate
     ) internal pure returns (uint256) {
-        return
-            (totalStableDebt.mulDiv(averageBorrowStableRate, ONE_18_DP) -
-                borrowAmount.mulDiv(borrowStableRate, ONE_18_DP)).mulDiv(ONE_18_DP, totalStableDebt - borrowAmount);
+        uint256 newTotalStableDebt = totalStableDebt - borrowAmount;
+        (, uint256 overallInterestAmount) = totalStableDebt.mulDiv(averageBorrowStableRate, ONE_18_DP).trySub(
+            borrowAmount.mulDiv(borrowStableRate, ONE_18_DP)
+        );
+        return newTotalStableDebt > 0 ? overallInterestAmount.mulDiv(ONE_18_DP, newTotalStableDebt) : 0;
     }
 
     /// @dev Calculates the collateral received by the protocol from liquidation.

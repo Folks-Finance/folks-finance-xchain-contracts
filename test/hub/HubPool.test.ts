@@ -7,7 +7,7 @@ import {
   HubPoolLogged__factory,
   MockOracleManager__factory,
 } from "../../typechain-types";
-import { PoolData, getInitialPoolData } from "./libraries/assets/poolData";
+import { getInitialPoolData } from "./libraries/assets/poolData";
 import {
   BYTES32_LENGTH,
   UINT256_LENGTH,
@@ -1065,6 +1065,46 @@ describe("HubPool (unit tests)", () => {
       await expect(updatePoolWithRepay).to.emit(hubPool, "InterestRatesUpdated");
     });
 
+    it("Should handle underflow of stable average interest rate", async () => {
+      const { loanManager, hubPool } = await loadFixture(deployHubPoolFixture);
+
+      // set pool data
+      const depositTotalAmount = BigInt(10e18);
+      const stableBorrowTotalAmount = BigInt(2.386376e6);
+      const stableInterestRate = BigInt(0.12e18);
+      const stableAverageInterestRate = BigInt(0.107852660268122039e18);
+      const feeTotalRetainedAmount = BigInt(0.14e18);
+      const poolData = getInitialPoolData();
+      poolData.depositData.totalAmount = depositTotalAmount;
+      poolData.stableBorrowData.totalAmount = stableBorrowTotalAmount;
+      poolData.stableBorrowData.interestRate = stableInterestRate;
+      poolData.stableBorrowData.averageInterestRate = stableAverageInterestRate;
+      poolData.feeData.totalRetainedAmount = feeTotalRetainedAmount;
+      await hubPool.setPoolData(poolData);
+
+      // calculate new stable average interest rate
+      const principalPaid = stableBorrowTotalAmount - BigInt(1);
+      const loanStableRate = BigInt(0.107852785437925392e18);
+      const newStableAverageInterestRate = calcDecreasingAverageStableBorrowInterestRate(
+        principalPaid,
+        loanStableRate,
+        stableBorrowTotalAmount,
+        stableAverageInterestRate
+      );
+
+      // update pool with repay
+      const interestPaid = BigInt(0);
+      const excessAmount = BigInt(0);
+      const updatePoolWithRepay = await hubPool
+        .connect(loanManager)
+        .updatePoolWithRepay(principalPaid, interestPaid, loanStableRate, excessAmount);
+      expect((await hubPool.getStableBorrowData())[8]).to.equal(poolData.stableBorrowData.totalAmount - principalPaid);
+      expect((await hubPool.getStableBorrowData())[10]).to.equal(newStableAverageInterestRate);
+      expect((await hubPool.getFeeData())[4]).to.equal(feeTotalRetainedAmount + excessAmount);
+      expect((await hubPool.getDepositData())[1]).to.equal(depositTotalAmount + interestPaid);
+      await expect(updatePoolWithRepay).to.emit(hubPool, "InterestRatesUpdated");
+    });
+
     it("Should fail to update pool with repay when sender is not loan manager", async () => {
       const { user, hubPool } = await loadFixture(deployHubPoolFixture);
 
@@ -1444,6 +1484,39 @@ describe("HubPool (unit tests)", () => {
       expect((await hubPool.getStableBorrowData())[8]).to.equal(
         poolData.stableBorrowData.totalAmount - loanBorrowAmount
       );
+      expect((await hubPool.getStableBorrowData())[10]).to.equal(newStableAverageInterestRate);
+      await expect(updatePoolWithSwitchBorrowType).to.emit(hubPool, "InterestRatesUpdated");
+    });
+
+    it("Should handle div by zero when no stable remaining", async () => {
+      const { loanManager, hubPool } = await loadFixture(deployHubPoolFixture);
+
+      // set pool data
+      const variableBorrowTotalAmount = BigInt(1.43543539e18);
+      const stableBorrowTotalAmount = BigInt(0.3254823e18);
+      const stableInterestRate = BigInt(0.1420009e18);
+      const stableAverageInterestRate = BigInt(0.19014e18);
+      const poolData = getInitialPoolData();
+      poolData.variableBorrowData.totalAmount = variableBorrowTotalAmount;
+      poolData.stableBorrowData.totalAmount = stableBorrowTotalAmount;
+      poolData.stableBorrowData.interestRate = stableInterestRate;
+      poolData.stableBorrowData.averageInterestRate = stableAverageInterestRate;
+      await hubPool.setPoolData(poolData);
+
+      // calculate new stable average interest rate
+      const loanBorrowAmount = stableBorrowTotalAmount;
+      const switchingToStable = false;
+      const oldLoanBorrrowStableRate = stableAverageInterestRate;
+      const newStableAverageInterestRate = BigInt(0);
+
+      // update pool with switch borrow type
+      const updatePoolWithSwitchBorrowType = await hubPool
+        .connect(loanManager)
+        .updatePoolWithSwitchBorrowType(loanBorrowAmount, switchingToStable, oldLoanBorrrowStableRate);
+      expect((await hubPool.getVariableBorrowData())[3]).to.equal(
+        poolData.variableBorrowData.totalAmount + loanBorrowAmount
+      );
+      expect((await hubPool.getStableBorrowData())[8]).to.equal(BigInt(0));
       expect((await hubPool.getStableBorrowData())[10]).to.equal(newStableAverageInterestRate);
       await expect(updatePoolWithSwitchBorrowType).to.emit(hubPool, "InterestRatesUpdated");
     });

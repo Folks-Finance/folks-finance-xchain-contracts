@@ -2,9 +2,9 @@ import {
   divScale,
   divScaleRoundUp,
   expBySquaring,
+  maximum,
   mulScale,
   mulScaleRoundUp,
-  ONE_10_DP,
   ONE_12_DP,
   ONE_14_DP,
   ONE_18_DP,
@@ -117,8 +117,7 @@ function calcMaxSingleStableBorrow(availableLiquidity: bigint, sbpc: bigint): bi
  * @return utilisationRatio (18dp)
  */
 function calcUtilisationRatio(totalDebt: bigint, totalDeposits: bigint): bigint {
-  if (totalDeposits === BigInt(0)) return BigInt(0);
-  return divScale(totalDebt, totalDeposits, ONE_18_DP);
+  return totalDeposits > 0 ? divScale(totalDebt, totalDeposits, ONE_18_DP) : 0n;
 }
 
 /**
@@ -128,8 +127,7 @@ function calcUtilisationRatio(totalDebt: bigint, totalDeposits: bigint): bigint 
  * @return stableDebtToTotalDebtRatio (18dp)
  */
 function calcStableDebtToTotalDebtRatio(totalStblDebt: bigint, totalDebt: bigint): bigint {
-  if (totalDebt === BigInt(0)) return BigInt(0);
-  return divScale(totalStblDebt, totalDebt, ONE_18_DP);
+  return totalDebt > 0 ? divScale(totalStblDebt, totalDebt, ONE_18_DP) : 0n;
 }
 
 /**
@@ -198,8 +196,7 @@ function calcOverallBorrowInterestRate(
   avgsbirt: bigint
 ): bigint {
   const totalDebt = calcTotalDebt(totalVarDebt, totalStblDebt);
-  if (totalDebt === BigInt(0)) return BigInt(0);
-  return (totalVarDebt * vbirt + totalStblDebt * avgsbirt) / totalDebt;
+  return totalDebt > 0 ? (totalVarDebt * vbirt + totalStblDebt * avgsbirt) / totalDebt : 0n;
 }
 
 /**
@@ -407,11 +404,12 @@ function calcDecreasingAverageStableBorrowInterestRate(
   totalStableDebt: bigint,
   averageBorrowStableRate: bigint
 ): bigint {
-  return divScale(
+  const newTotalStableDebt = totalStableDebt - borrowAmount;
+  const overallInterestAmount = maximum(
     mulScale(totalStableDebt, averageBorrowStableRate, ONE_18_DP) - mulScale(borrowAmount, borrowStableRate, ONE_18_DP),
-    totalStableDebt - borrowAmount,
-    ONE_18_DP
+    0n
   );
+  return newTotalStableDebt > 0 ? divScale(overallInterestAmount, newTotalStableDebt, ONE_18_DP) : 0n;
 }
 
 /**
