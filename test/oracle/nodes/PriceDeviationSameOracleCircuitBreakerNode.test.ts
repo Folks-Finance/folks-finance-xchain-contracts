@@ -103,9 +103,7 @@ describe("PriceDeviationSameOracleCircuitBreakerNode", async function () {
       let parentNodeIds: string[];
       let nodeId: string;
 
-      beforeEach("Register PriceDeviationSameOracleCircuitBreaker", async function () {});
-
-      it("Should process correctly", async function () {
+      it("Should process correctly when price < comparison price", async function () {
         deviationTolerance = 1e18;
         parentNodeIds = [external22NodeId, constant42NodeId, constant69NodeId];
         const encodedParams = NodeManagerUtil.encodePriceDeviationSameOracleCircuitBreakerNodeDefinition(
@@ -119,7 +117,22 @@ describe("PriceDeviationSameOracleCircuitBreakerNode", async function () {
         expect(nodeOutput.price).to.equal(externalNodePrice);
       });
 
+      it("Should process correctly when price > comparison price", async function () {
+        deviationTolerance = 1e18;
+        parentNodeIds = [constant42NodeId, external22NodeId, constant69NodeId];
+        const encodedParams = NodeManagerUtil.encodePriceDeviationSameOracleCircuitBreakerNodeDefinition(
+          deviationTolerance,
+          parentNodeIds
+        );
+        nodeId = await NodeManagerUtil.registerNode(nodeManager, encodedParams);
+
+        const nodeOutput = await nodeManager.process(nodeId);
+
+        expect(nodeOutput.price).to.equal(constant42NodePrice);
+      });
+
       it("Should process the third node price cause price th not met", async function () {
+        parentNodeIds = [external22NodeId, constant42NodeId, constant69NodeId];
         deviationTolerance =
           (Math.abs(externalNodePrice - constant42NodePrice) * 10 ** PRECISION) / externalNodePrice + 1;
         const encodedParams = NodeManagerUtil.encodePriceDeviationSameOracleCircuitBreakerNodeDefinition(
