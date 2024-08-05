@@ -36,6 +36,13 @@ export class NodeManagerUtil {
     return [NodeType.STALENESS_CIRCUIT_BREAKER, abi.encode(["uint256"], [staleness.toString()]), parentIds];
   }
 
+  public static encodePriceDeviationCircuitBreakerNodeDefinition(
+    deviation: number,
+    parentIds: string[]
+  ): NodeDefinitionData {
+    return [NodeType.PRICE_DEVIATION_CIRCUIT_BREAKER, abi.encode(["uint256"], [deviation.toString()]), parentIds];
+  }
+
   public static encodePriceDeviationSameOracleCircuitBreakerNodeDefinition(
     deviation: number,
     parentIds: string[]
