@@ -19,11 +19,7 @@ export function getConstantNodePrice(nodeDefinition: NodeDefinition.DataStructOu
   return price;
 }
 
-export async function deployMockChainlinkAggregator(
-  decimals: number,
-  prices: [number, number, number, number, number],
-  timestampDeltas: [number, number, number, number, number]
-) {
+export async function deployMockChainlinkAggregator(decimals: number, prices: bigint[], timestampDeltas: number[]) {
   const MockChainlinkAggregator = await ethers.getContractFactory("MockChainlinkAggregator");
   const mockChainlinkAggregator = await MockChainlinkAggregator.deploy(decimals, prices, timestampDeltas);
   await mockChainlinkAggregator.waitForDeployment();
@@ -32,3 +28,9 @@ export async function deployMockChainlinkAggregator(
   const deployBlockTimestamp = blockInfo?.timestamp as number;
   return { mockChainlinkAggregator, deployBlockTimestamp };
 }
+
+export const getRandomPriceInRangeWithDp = (min: number, max: number, dp: number) =>
+  BigInt(Math.floor((Math.random() * (max - min) + min) * 10 ** dp));
+
+export const priceToPrecisionDp = (price: bigint, decimals: number, precision: number) =>
+  precision > decimals ? price * BigInt(10 ** (precision - decimals)) : price / BigInt(10 ** (decimals - precision));
