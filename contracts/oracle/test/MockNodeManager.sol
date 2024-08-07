@@ -43,6 +43,14 @@ contract MockNodeManager is INodeManager {
         return _supportsInterface;
     }
 
+    function getINodeManagerInterface() external pure returns (bytes4) {
+        return type(INodeManager).interfaceId;
+    }
+
+    function getERC165Selector() external pure returns (bytes4) {
+        return type(IERC165).interfaceId;
+    }
+
     function getNodeId(
         NodeDefinition.NodeType,
         bytes calldata,
