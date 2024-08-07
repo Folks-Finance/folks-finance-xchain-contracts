@@ -128,7 +128,7 @@ for (const decimals of decimalsArray) {
 
     for (let twapInterval of timestampDeltas.filter((timestampDelta) => timestampDelta > 0)) {
       describe(`Contract methods with twapInterval: ${twapInterval}`, async function () {
-        let mockChainlinkAggregator;
+        let mockChainlinkAggregator: MockChainlinkAggregator;
         let deployBlockTimestamp: number;
         let nodeIdTwap: string;
 
@@ -152,6 +152,29 @@ for (const decimals of decimalsArray) {
         it("Should process correctly with twap", async function () {
           const filteredPrices = pricesWithTimestampDelta
             .filter((pricesWithTimestampDelta) => pricesWithTimestampDelta.timestampDelta < twapInterval)
+            .map(({ price }) => price);
+
+          const twap = filteredPrices.reduce((a, b) => a + b, 0n) / BigInt(filteredPrices.length);
+
+          const nodeOutput = await nodeManager.process(nodeIdTwap);
+
+          expect(nodeOutput.price).to.equal(priceToPrecisionDp(twap, decimals, PRECISION));
+          expect(nodeOutput.timestamp).to.equal(deployBlockTimestamp - timestampDeltas[timestampDeltas.length - 1]);
+          expect(nodeOutput.additionalParam1).to.equal(0);
+          expect(nodeOutput.additionalParam2).to.equal(0);
+        });
+
+        it("Should process correctly with twap when there is missing roundId", async function () {
+          const pricesWithTimestampDeltaClone = structuredClone(pricesWithTimestampDelta);
+          pricesWithTimestampDeltaClone[pricesCount - 2].price = 0n;
+          // set price to 0 so it will revert
+          await mockChainlinkAggregator.setPrice(0, pricesCount - 2);
+
+          const filteredPrices = pricesWithTimestampDeltaClone
+            .filter(
+              (priceWithTimestampDelta) =>
+                priceWithTimestampDelta.timestampDelta < twapInterval && priceWithTimestampDelta.price !== 0n
+            )
             .map(({ price }) => price);
 
           const twap = filteredPrices.reduce((a, b) => a + b, 0n) / BigInt(filteredPrices.length);
