@@ -12,7 +12,13 @@ abstract contract BridgeRouter is IBridgeRouter, AccessControlDefaultAdminRules 
     bytes32 public constant override MESSAGE_SENDER_ROLE = keccak256("MESSAGE_SENDER");
 
     event MessageSucceeded(uint16 adapterId, bytes32 indexed messageId);
-    event MessageFailed(uint16 adapterId, bytes32 indexed messageId, bytes reason);
+    event MessageFailed(
+        uint16 adapterId,
+        bytes32 indexed messageId,
+        bytes reason,
+        Messages.MessageReceived message,
+        bytes32 messageHash
+    );
     event MessageRetrySucceeded(uint16 adapterId, bytes32 indexed messageId);
     event MessageRetryFailed(uint16 adapterId, bytes32 indexed messageId, bytes reason);
     event MessageReverseSucceeded(uint16 adapterId, bytes32 indexed messageId);
@@ -27,13 +33,13 @@ abstract contract BridgeRouter is IBridgeRouter, AccessControlDefaultAdminRules 
     error AdapterNotInitialized(uint16 adapterId);
     error AdapterUnknown(IBridgeAdapter adapter);
     error MessageAlreadySeen(bytes32 messageId);
-    error MessageUnknown(bytes32 messageId);
+    error FailedMessageUnknown(uint16 adapterId, bytes32 messageId);
 
     mapping(uint16 adapterId => IBridgeAdapter adapter) public idToAdapter;
     mapping(IBridgeAdapter adapter => uint16 adapterId) public adapterToId;
 
     mapping(uint16 adapterId => mapping(bytes32 messageId => bool hasBeenSeen)) public seenMessages;
-    mapping(uint16 adapterId => mapping(bytes32 messageId => Messages.MessageReceived)) public failedMessages;
+    mapping(uint16 adapterId => mapping(bytes32 messageId => bytes32 messageHash)) public failedMessages;
     mapping(bytes32 userId => uint256 balance) public balances;
 
     constructor(address admin) AccessControlDefaultAdminRules(1 days, admin) {
@@ -119,14 +125,19 @@ abstract contract BridgeRouter is IBridgeRouter, AccessControlDefaultAdminRules 
         } catch (bytes memory err) {
             // don't revert so GMP doesn't revert
             // store and emit message received as failed
-            failedMessages[adapterId][message.messageId] = message;
-            emit MessageFailed(adapterId, message.messageId, err);
+            bytes32 messageHash = keccak256(abi.encode(message));
+            failedMessages[adapterId][message.messageId] = messageHash;
+            emit MessageFailed(adapterId, message.messageId, err, message, messageHash);
         }
     }
 
-    function retryMessage(uint16 adapterId, bytes32 messageId) external payable {
-        // get failed message if known
-        Messages.MessageReceived memory message = _getFailedMessage(adapterId, messageId);
+    function retryMessage(
+        uint16 adapterId,
+        bytes32 messageId,
+        Messages.MessageReceived memory message
+    ) external payable {
+        // verify failed message is known
+        bytes32 messageHash = _verifyFailedMessage(adapterId, messageId, message);
 
         // convert handler to address type (from lower 20 bytes)
         address handler = Messages.convertGenericAddressToEVMAddress(message.handler);
@@ -146,14 +157,19 @@ abstract contract BridgeRouter is IBridgeRouter, AccessControlDefaultAdminRules 
             emit MessageRetrySucceeded(adapterId, message.messageId);
         } catch (bytes memory err) {
             // store and emit message retry as failed
-            failedMessages[adapterId][message.messageId] = message;
+            failedMessages[adapterId][message.messageId] = messageHash;
             emit MessageRetryFailed(adapterId, message.messageId, err);
         }
     }
 
-    function reverseMessage(uint16 adapterId, bytes32 messageId, bytes memory extraArgs) external payable {
-        // get failed message if known
-        Messages.MessageReceived memory message = _getFailedMessage(adapterId, messageId);
+    function reverseMessage(
+        uint16 adapterId,
+        bytes32 messageId,
+        Messages.MessageReceived memory message,
+        bytes memory extraArgs
+    ) external payable {
+        // verify failed message is known
+        bytes32 messageHash = _verifyFailedMessage(adapterId, messageId, message);
 
         // convert handler to address type (from lower 20 bytes)
         address handler = Messages.convertGenericAddressToEVMAddress(message.handler);
@@ -169,11 +185,11 @@ abstract contract BridgeRouter is IBridgeRouter, AccessControlDefaultAdminRules 
 
         // call handler with received payload
         try BridgeMessenger(handler).reverseMessage(message, extraArgs) {
-            // clear failure and emit message reverse as suceeded
+            // emit message reverse as suceeded
             emit MessageReverseSucceeded(adapterId, message.messageId);
         } catch (bytes memory err) {
             // store and emit message reverse as failed
-            failedMessages[adapterId][message.messageId] = message;
+            failedMessages[adapterId][message.messageId] = messageHash;
             emit MessageReverseFailed(adapterId, message.messageId, err);
         }
     }
@@ -192,13 +208,18 @@ abstract contract BridgeRouter is IBridgeRouter, AccessControlDefaultAdminRules 
         return idToAdapter[adapterId];
     }
 
-    function _getFailedMessage(
+    function _verifyFailedMessage(
         uint16 adapterId,
-        bytes32 messageId
-    ) internal view returns (Messages.MessageReceived memory) {
-        Messages.MessageReceived memory message = failedMessages[adapterId][messageId];
-        if (!seenMessages[adapterId][messageId] || message.messageId != messageId) revert MessageUnknown(messageId);
-        return message;
+        bytes32 messageId,
+        Messages.MessageReceived memory message
+    ) internal view returns (bytes32) {
+        bytes32 messageHash = failedMessages[adapterId][messageId];
+        if (
+            keccak256(abi.encode(message)) != messageHash ||
+            !seenMessages[adapterId][messageId] ||
+            message.messageId != messageId
+        ) revert FailedMessageUnknown(adapterId, messageId);
+        return messageHash;
     }
 
     function _getUserId(Messages.MessagePayload memory payload) internal view virtual returns (bytes32);

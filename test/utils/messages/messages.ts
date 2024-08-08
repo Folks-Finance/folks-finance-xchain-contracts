@@ -154,3 +154,13 @@ export function decodePayloadWithMetadata(serialised: string): PayloadWithMetada
   const payload = ethers.dataSlice(serialised, index);
   return { metadata: { returnAdapterId, returnGasLimit, sender, handler }, payload };
 }
+
+export const getMessageReceivedHash = (message: MessageReceived) =>
+  ethers.keccak256(
+    abi.encode(
+      [
+        "(bytes32 messageId, uint16 sourceChainId, bytes32 sourceAddress, bytes32 handler, bytes payload, uint16 returnAdapterId, uint256 returnGasLimit)",
+      ],
+      [message]
+    )
+  );
