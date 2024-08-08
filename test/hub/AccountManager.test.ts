@@ -783,7 +783,7 @@ describe("AccountManager (unit tests)", () => {
       // get address
       const getAddress = accountManager.connect(hub).getAddressRegisteredToAccountOnChain(accountId, unknownChainId);
       await expect(getAddress)
-        .to.be.revertedWithCustomError(accountManager, "NoAddressRegisterd")
+        .to.be.revertedWithCustomError(accountManager, "NoAddressRegistered")
         .withArgs(accountId, unknownChainId);
     });
   });
