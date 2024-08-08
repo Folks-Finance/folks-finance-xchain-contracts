@@ -58,7 +58,7 @@ contract WormholeCCTPAdapter is IBridgeAdapter, IWormholeReceiver, AccessControl
     }
 
     /**
-     * @notice Contructor
+     * @notice Constructor
      * @param admin The default admin for AcccountManager
      * @param _wormhole The Wormhole Core to get message fees
      * @param _wormholeRelayer The Wormhole Relayer to relay messages using

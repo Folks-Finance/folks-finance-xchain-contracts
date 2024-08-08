@@ -28,7 +28,7 @@ abstract contract RateLimited is AccessControlDefaultAdminRules {
     uint256 public currentCapacity; // capacity in period
 
     /**
-     * @notice Contructor
+     * @notice Constructor
      * @param admin The default admin for RateLimiter
      * @param bucketConfig_ The initial bucket configuration
      */

@@ -61,6 +61,10 @@ contract MockAccountManager is IAccountManager {
         _isDelegate = newIsDelegate;
     }
 
+    function getNumAddressesRegisteredToAccount(bytes32) external view override returns (uint16) {
+        return _isAddressRegisteredToAccount ? 1 : 0;
+    }
+
     function getAccountIdOfAddressOnChain(bytes32, uint16) external view override returns (bytes32) {
         return _accountIdOfAddressOnChain;
     }

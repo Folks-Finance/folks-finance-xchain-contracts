@@ -18,7 +18,7 @@ contract CCIPTokenAdapter is CCIPAdapter {
     mapping(address token => bool isSupported) private supportedTokens;
 
     /**
-     * @notice Contructor
+     * @notice Constructor
      * @param admin The default admin for AcccountManager
      * @param ccipRouter The CCIP router to relay messages using
      * @param bridgeRouter The Bridge Router to route messages through

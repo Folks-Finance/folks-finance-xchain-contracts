@@ -9,6 +9,7 @@ interface IAccountManager {
     }
 
     error AccountAlreadyCreated(bytes32 accountId);
+    error CannotDeleteAccount(bytes32 accountId);
     error AddressPreviouslyRegistered(uint16 chainId, bytes32 addr);
     error AccountHasAddressRegistered(bytes32 accountId, uint16 chainId);
     error UnknownAccount(bytes32 accountId);
@@ -16,7 +17,7 @@ interface IAccountManager {
     error NotRegisteredToAccount(bytes32 accountId, uint16 chainId, bytes32 addr);
     error NotInvitedToAccount(bytes32 accountId, uint16 chainId, bytes32 addr);
     error NoAddressToUnregister(bytes32 accountId, uint16 chainId);
-    error NoAddressRegisterd(bytes32 accountId, uint16 chainId);
+    error NoAddressRegistered(bytes32 accountId, uint16 chainId);
     error NoAddressInvited(bytes32 accountId, uint16 chainId);
     error DelegateAlreadyAdded(bytes32 accountId, address addr);
     error NoDelegateToRemove(bytes32 accountId, address addr);
@@ -37,6 +38,7 @@ interface IAccountManager {
 
     function HUB_ROLE() external view returns (bytes32);
 
+    function getNumAddressesRegisteredToAccount(bytes32 accountId) external view returns (uint16);
     function getAccountIdOfAddressOnChain(bytes32 addr, uint16 chainId) external view returns (bytes32);
     function getAddressRegisteredToAccountOnChain(bytes32 accountId, uint16 chainId) external view returns (bytes32);
     function getAddressInvitedToAccountOnChain(bytes32 accountId, uint16 chainId) external view returns (bytes32);

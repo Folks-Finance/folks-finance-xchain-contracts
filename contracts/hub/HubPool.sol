@@ -23,7 +23,7 @@ abstract contract HubPool is ReentrancyGuard, IHubPool, HubPoolState, ERC20Flash
     uint8 internal fTokenDecimals;
 
     /**
-     * @notice Contructor
+     * @notice Constructor
      * @param admin The default admin for HubPool
      * @param tokenDecimals The number of decimals of underlying token on Hub
      */

@@ -10,7 +10,7 @@ contract HubCircleTokenPool is HubPool {
     address public immutable token;
 
     /**
-     * @notice Contructor
+     * @notice Constructor
      * @param admin The default admin for HubCircleTokenPool
      */
     constructor(
