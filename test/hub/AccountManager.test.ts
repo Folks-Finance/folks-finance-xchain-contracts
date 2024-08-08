@@ -319,6 +319,40 @@ describe("AccountManager (unit tests)", () => {
       await expect(accountManager.getAddressRegisteredToAccountOnChain(accountId, inviteeChainId)).to.be.reverted;
     });
 
+    it("Should successfuly invite address and override existing invited address for same account+chain", async () => {
+      const { hub, unusedUsers, accountManager, accountId, inviteeChainId, inviteeUserAddr } =
+        await loadFixture(inviteAddressFixture);
+
+      // verify existing invited address
+      expect(await accountManager.isAddressInvitedToAccount(accountId, inviteeChainId, inviteeUserAddr)).to.be.true;
+
+      const newInviteeUserAddr = convertEVMAddressToGenericAddress(unusedUsers[0].address);
+      const refAccountId: string = getEmptyBytes(BYTES32_LENGTH);
+
+      // invite address to account
+      const inviteAddress = accountManager
+        .connect(hub)
+        .inviteAddress(accountId, inviteeChainId, newInviteeUserAddr, refAccountId);
+
+      // verify invite
+      await expect(inviteAddress)
+        .to.emit(accountManager, "InviteAddress")
+        .withArgs(accountId, inviteeChainId, newInviteeUserAddr, refAccountId);
+      expect(await accountManager.isAddressRegistered(inviteeChainId, inviteeUserAddr)).to.be.false;
+      expect(await accountManager.isAddressRegistered(inviteeChainId, newInviteeUserAddr)).to.be.false;
+      expect(await accountManager.isAddressInvitedToAccount(accountId, inviteeChainId, inviteeUserAddr)).to.be.false;
+      expect(await accountManager.isAddressInvitedToAccount(accountId, inviteeChainId, newInviteeUserAddr)).to.be.true;
+      expect(await accountManager.isAddressRegisteredToAccount(accountId, inviteeChainId, inviteeUserAddr)).to.be.false;
+      expect(await accountManager.isAddressRegisteredToAccount(accountId, inviteeChainId, newInviteeUserAddr)).to.be
+        .false;
+      await expect(accountManager.getAccountIdOfAddressOnChain(inviteeUserAddr, inviteeChainId)).to.be.reverted;
+      await expect(accountManager.getAccountIdOfAddressOnChain(newInviteeUserAddr, inviteeChainId)).to.be.reverted;
+      expect(await accountManager.getAddressInvitedToAccountOnChain(accountId, inviteeChainId)).to.be.equal(
+        newInviteeUserAddr
+      );
+      await expect(accountManager.getAddressRegisteredToAccountOnChain(accountId, inviteeChainId)).to.be.reverted;
+    });
+
     it("Should fail to invite address when unknown account", async () => {
       const { hub, unusedUsers, accountManager } = await loadFixture(createAccountFixture);
 
@@ -353,25 +387,6 @@ describe("AccountManager (unit tests)", () => {
         .withArgs(spokeChainId, userAddr);
     });
 
-    it("Should fail to invite address when existing invited address for same account+chain", async () => {
-      const { hub, unusedUsers, accountManager, accountId, inviteeChainId, inviteeUserAddr } =
-        await loadFixture(inviteAddressFixture);
-
-      // verify existing invited address
-      expect(await accountManager.isAddressInvitedToAccount(accountId, inviteeChainId, inviteeUserAddr)).to.be.true;
-
-      const newInviteeUserAddr = convertEVMAddressToGenericAddress(unusedUsers[0].address);
-      const refAccountId: string = getEmptyBytes(BYTES32_LENGTH);
-
-      // invite address to account
-      const inviteAddress = accountManager
-        .connect(hub)
-        .inviteAddress(accountId, inviteeChainId, newInviteeUserAddr, refAccountId);
-      await expect(inviteAddress)
-        .to.be.revertedWithCustomError(accountManager, "AccountHasAddress")
-        .withArgs(accountId, inviteeChainId);
-    });
-
     it("Should fail to invite address when existing registered address for same account+chain", async () => {
       const { hub, userAddr, unusedUsers, accountManager, accountId, spokeChainId } =
         await loadFixture(inviteAddressFixture);
@@ -387,7 +402,7 @@ describe("AccountManager (unit tests)", () => {
         .connect(hub)
         .inviteAddress(accountId, spokeChainId, newInviteeUserAddr, refAccountId);
       await expect(inviteAddress)
-        .to.be.revertedWithCustomError(accountManager, "AccountHasAddress")
+        .to.be.revertedWithCustomError(accountManager, "AccountHasAddressRegistered")
         .withArgs(accountId, spokeChainId);
     });
 

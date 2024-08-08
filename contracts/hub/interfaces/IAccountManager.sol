@@ -10,7 +10,7 @@ interface IAccountManager {
 
     error AccountAlreadyCreated(bytes32 accountId);
     error AddressPreviouslyRegistered(uint16 chainId, bytes32 addr);
-    error AccountHasAddress(bytes32 accountId, uint16 chainId);
+    error AccountHasAddressRegistered(bytes32 accountId, uint16 chainId);
     error UnknownAccount(bytes32 accountId);
     error InvalidReferrerAccount(bytes32 accountId);
     error NotRegisteredToAccount(bytes32 accountId, uint16 chainId, bytes32 addr);
