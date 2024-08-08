@@ -19,6 +19,12 @@ describe("StalenessCircuitBreakerNode", async function () {
   let externalP22TS1HNodeTs: number;
   let externalP22TS1HNodeId: string;
 
+  let constant22PriceAnd1hAfterTsNodePrice: number;
+  let constant22PriceAnd1hAfterTsNodeTs: number;
+  let mockConstant22PriceAnd1hAfterTsNode: MockConstantPriceAndTimestampNode;
+  let externalP22TS1HAfterNodePrice: number;
+  let externalP22TS1HAfterNodeId: string;
+
   let constant42PriceAnd2hAgoTsNodePrice: number;
   let constant42PriceAnd2hAgoTsNodeTs: number;
   let mockConstant42PriceAnd2hAgoTsNode: MockConstantPriceAndTimestampNode;
@@ -26,11 +32,12 @@ describe("StalenessCircuitBreakerNode", async function () {
   let externalP42TS2HNodeTs: number;
   let externalP42TS2HNodeId: string;
 
+  let latestBlockTimestamp: number;
   beforeEach("Deploy NodeManager contract and register nodes", async function () {
     ({ nodeManager } = await loadFixture(deployNodeManagerFixture));
 
     const MockConstantPriceAndTimestampNode = await ethers.getContractFactory("MockConstantPriceAndTimestampNode");
-    const latestBlockTimestamp = (await ethers.provider.getBlock("latest"))?.timestamp as number;
+    latestBlockTimestamp = (await ethers.provider.getBlock("latest"))?.timestamp as number;
 
     constant22PriceAnd1hAgoTsNodePrice = externalP22TS1HNodePrice = 22e14;
     constant22PriceAnd1hAgoTsNodeTs = externalP22TS1HNodeTs = latestBlockTimestamp - 60 * 60;
@@ -40,6 +47,14 @@ describe("StalenessCircuitBreakerNode", async function () {
       constant22PriceAnd1hAgoTsNodeTs
     );
     await mockConstant22PriceAnd1hAgoTsNode.waitForDeployment();
+
+    constant22PriceAnd1hAfterTsNodePrice = externalP22TS1HAfterNodePrice = 22e14;
+    constant22PriceAnd1hAfterTsNodeTs = externalP22TS1HNodeTs = latestBlockTimestamp + 60 * 60;
+    mockConstant22PriceAnd1hAfterTsNode = await MockConstantPriceAndTimestampNode.deploy(
+      constant22PriceAnd1hAfterTsNodePrice,
+      constant22PriceAnd1hAfterTsNodeTs
+    );
+    await mockConstant22PriceAnd1hAfterTsNode.waitForDeployment();
 
     constant42PriceAnd2hAgoTsNodePrice = externalP42TS2HNodePrice = 42e14;
     constant42PriceAnd2hAgoTsNodeTs = externalP42TS2HNodeTs = latestBlockTimestamp - 2 * 60 * 60;
@@ -53,6 +68,10 @@ describe("StalenessCircuitBreakerNode", async function () {
     externalP22TS1HNodeId = await NodeManagerUtil.registerNode(
       nodeManager,
       await NodeManagerUtil.encodeExternalNodeDefinition(await mockConstant22PriceAnd1hAgoTsNode.getAddress())
+    );
+    externalP22TS1HAfterNodeId = await NodeManagerUtil.registerNode(
+      nodeManager,
+      await NodeManagerUtil.encodeExternalNodeDefinition(await mockConstant22PriceAnd1hAfterTsNode.getAddress())
     );
     externalP42TS2HNodeId = await NodeManagerUtil.registerNode(
       nodeManager,
@@ -87,7 +106,17 @@ describe("StalenessCircuitBreakerNode", async function () {
     });
 
     it("Should emit InvalidNodeDefinition cause has no parent node", async function () {
-      const stalenessTolerance = 1e18;
+      const stalenessTolerance = latestBlockTimestamp;
+      const encodedParams = abi.encode(["uint256"], [stalenessTolerance.toString()]);
+      const nodeDefinition: NodeDefinitionData = [NodeType.STALENESS_CIRCUIT_BREAKER, encodedParams, []];
+
+      const registerTxn = nodeManager.registerNode(...nodeDefinition);
+
+      await expect(registerTxn).to.revertedWithCustomError(nodeManager, "InvalidNodeDefinition");
+    });
+
+    it("Should emit InvalidNodeDefinition cause staleness tolerance > block timestamp", async function () {
+      const stalenessTolerance = latestBlockTimestamp * 2;
       const encodedParams = abi.encode(["uint256"], [stalenessTolerance.toString()]);
       const nodeDefinition: NodeDefinitionData = [NodeType.STALENESS_CIRCUIT_BREAKER, encodedParams, []];
 
@@ -98,7 +127,7 @@ describe("StalenessCircuitBreakerNode", async function () {
 
     it("Should emit InvalidNodeDefinition cause has no more than 2 parents node", async function () {
       const fakeParent = ethers.encodeBytes32String("FakeParent");
-      const stalenessTolerance = 1e18;
+      const stalenessTolerance = latestBlockTimestamp;
       const encodedParams = abi.encode(["uint256"], [stalenessTolerance.toString()]);
       const nodeDefinition: NodeDefinitionData = [
         NodeType.STALENESS_CIRCUIT_BREAKER,
@@ -119,7 +148,7 @@ describe("StalenessCircuitBreakerNode", async function () {
       beforeEach("Register StalenessCircuitBreakerNode", async function () {});
 
       it("Should process correctly", async function () {
-        stalenessTolerance = 1e18;
+        stalenessTolerance = latestBlockTimestamp;
         const encodedParams = abi.encode(["uint256"], [stalenessTolerance.toString()]);
         parentNodeIds = [externalP22TS1HNodeId, externalP42TS2HNodeId];
         const nodeDefinition: NodeDefinitionData = [NodeType.STALENESS_CIRCUIT_BREAKER, encodedParams, parentNodeIds];
@@ -130,6 +159,20 @@ describe("StalenessCircuitBreakerNode", async function () {
 
         const nodeOutput = await nodeManager.process(nodeId);
         expect(nodeOutput.price).to.equal(externalP22TS1HNodePrice);
+      });
+
+      it("Should process correctly when node ts > block timestamp", async function () {
+        stalenessTolerance = latestBlockTimestamp;
+        const encodedParams = abi.encode(["uint256"], [stalenessTolerance.toString()]);
+        parentNodeIds = [externalP22TS1HAfterNodeId, externalP42TS2HNodeId];
+        const nodeDefinition: NodeDefinitionData = [NodeType.STALENESS_CIRCUIT_BREAKER, encodedParams, parentNodeIds];
+        nodeId = getOracleNodeId(...nodeDefinition);
+
+        const registerTxn = await nodeManager.registerNode(...nodeDefinition);
+        await registerTxn.wait();
+
+        const nodeOutput = await nodeManager.process(nodeId);
+        expect(nodeOutput.price).to.equal(externalP22TS1HAfterNodePrice);
       });
 
       it("Should process correctly but with 2nd parent price", async function () {
