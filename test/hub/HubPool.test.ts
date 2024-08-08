@@ -1299,7 +1299,7 @@ describe("HubPool (unit tests)", () => {
       expect((await hubPool.getVariableBorrowData())[3]).to.equal(
         poolData.variableBorrowData.totalAmount - principalPaid
       );
-      expect((await hubPool.getDepositData())[1]).to.equal(depositTotalAmount - principalPaid + interestPaid);
+      expect((await hubPool.getDepositData())[1]).to.equal(depositTotalAmount - principalPaid);
       await expect(updatePoolWithRepayWithCollateral).to.emit(hubPool, "InterestRatesUpdated");
       await expect(updatePoolWithRepayWithCollateral)
         .to.emit(loanManager, "RepayWithCollateralPoolParams")
