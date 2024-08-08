@@ -248,9 +248,14 @@ library MathUtils {
     /// @dev Calculates fAsset received from depositing.
     /// @param underlyingAmount The amount of the underlying asset.
     /// @param depositInterestIndexAtT 18dp - The deposit interest index at time T.
+    /// @param rounding Whether to round returned amount up or down
     /// @return The corresponding fAsset amount.
-    function toFAmount(uint256 underlyingAmount, uint256 depositInterestIndexAtT) internal pure returns (uint256) {
-        return underlyingAmount.mulDiv(ONE_18_DP, depositInterestIndexAtT);
+    function toFAmount(
+        uint256 underlyingAmount,
+        uint256 depositInterestIndexAtT,
+        Math.Rounding rounding
+    ) internal pure returns (uint256) {
+        return underlyingAmount.mulDiv(ONE_18_DP, depositInterestIndexAtT, rounding);
     }
 
     /// @dev Calculates the asset amount received from withdrawing.
@@ -487,7 +492,8 @@ library MathUtils {
         return
             toFAmount(
                 convertAssetAmount(borrowAmount, borrPrice, borrDecimals, collPrice, collDecimals),
-                collDepositInterestIndex
+                collDepositInterestIndex,
+                Math.Rounding.Floor
             );
     }
 

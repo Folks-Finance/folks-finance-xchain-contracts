@@ -243,7 +243,8 @@ library LiquidationLogic {
                 collDepositInterestIndex
             );
             liquidationAmounts.seizeCollateralFAmount = seizeUnderlyingCollateralAmount.toFAmount(
-                collDepositInterestIndex
+                collDepositInterestIndex,
+                Math.Rounding.Floor
             );
         }
     }
