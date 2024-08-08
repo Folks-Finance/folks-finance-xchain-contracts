@@ -6,6 +6,7 @@ import {
   BridgeRouterSender__factory,
   MockCircleMessageTransmitter__factory,
   MockCircleTokenMessenger__factory,
+  MockWormhole__factory,
   MockWormholeRelayer__factory,
   SimpleERC20Token__factory,
   WormholeCCTPAdapter__factory,
@@ -74,6 +75,7 @@ describe("WormholeCCTPAdapter (unit tests)", () => {
     const circleTokenAddress = await circleToken.getAddress();
 
     // deploy adapter
+    const wormhole = await new MockWormhole__factory(admin).deploy();
     const relayer = await new MockWormholeRelayer__factory(admin).deploy();
     const bridgeRouter = await new BridgeRouterSender__factory(admin).deploy();
     const circleMessageTransmitter = await new MockCircleMessageTransmitter__factory(admin).deploy();
@@ -82,6 +84,7 @@ describe("WormholeCCTPAdapter (unit tests)", () => {
     const cctpSourceDomainId = 328057832;
     const adapter = await new WormholeCCTPAdapter__factory(user).deploy(
       admin,
+      wormhole,
       relayer,
       bridgeRouter,
       circleMessageTransmitter,
@@ -97,6 +100,7 @@ describe("WormholeCCTPAdapter (unit tests)", () => {
       admin,
       unusedUsers,
       adapter,
+      wormhole,
       relayer,
       bridgeRouter,
       circleMessageTransmitter,
@@ -114,6 +118,7 @@ describe("WormholeCCTPAdapter (unit tests)", () => {
       admin,
       unusedUsers,
       adapter,
+      wormhole,
       relayer,
       bridgeRouter,
       circleMessageTransmitter,
@@ -136,6 +141,7 @@ describe("WormholeCCTPAdapter (unit tests)", () => {
       admin,
       unusedUsers,
       adapter,
+      wormhole,
       relayer,
       bridgeRouter,
       circleMessageTransmitter,
@@ -291,15 +297,20 @@ describe("WormholeCCTPAdapter (unit tests)", () => {
 
   describe("Get Send Fee", () => {
     it("Should successfuly get send fee", async () => {
-      const { adapter, folksChainId, circleTokenAddress } = await loadFixture(addChainFixture);
+      const { adapter, wormhole, folksChainId, circleTokenAddress } = await loadFixture(addChainFixture);
+
+      // set publish fee
+      const publishFee = BigInt(getRandomInt(100_000));
+      await wormhole.setMessageFee(publishFee);
 
       const recipientAddress = getRandomAddress();
       const amount = BigInt(0.1e18);
       const message = getMessage(folksChainId, circleTokenAddress, recipientAddress, amount);
+      const deliveryFee = message.params.receiverValue + message.params.gasLimit;
 
       // get send fee
       const fee = await adapter.getSendFee(message);
-      expect(fee).to.be.equal(message.params.receiverValue + message.params.gasLimit);
+      expect(fee).to.be.equal(deliveryFee + publishFee);
     });
 
     it("Should fail to get send fee when chain not added", async () => {
