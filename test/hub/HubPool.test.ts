@@ -1154,7 +1154,7 @@ describe("HubPool (unit tests)", () => {
       expect((await hubPool.getVariableBorrowData())[3]).to.equal(
         poolData.variableBorrowData.totalAmount - principalPaid
       );
-      expect((await hubPool.getDepositData())[1]).to.equal(depositTotalAmount - principalPaid + interestPaid);
+      expect((await hubPool.getDepositData())[1]).to.equal(depositTotalAmount - principalPaid);
       await expect(updatePoolWithRepayWithCollateral).to.emit(hubPool, "InterestRatesUpdated");
       await expect(updatePoolWithRepayWithCollateral)
         .to.emit(loanManager, "RepayWithCollateralPoolParams")
@@ -1203,7 +1203,7 @@ describe("HubPool (unit tests)", () => {
       );
       expect((await hubPool.getStableBorrowData())[8]).to.equal(poolData.stableBorrowData.totalAmount - principalPaid);
       expect((await hubPool.getStableBorrowData())[10]).to.equal(newStableAverageInterestRate);
-      expect((await hubPool.getDepositData())[1]).to.equal(depositTotalAmount - principalPaid + interestPaid);
+      expect((await hubPool.getDepositData())[1]).to.equal(depositTotalAmount - principalPaid);
       await expect(updatePoolWithRepayWithCollateral).to.emit(hubPool, "InterestRatesUpdated");
       await expect(updatePoolWithRepayWithCollateral)
         .to.emit(loanManager, "RepayWithCollateralPoolParams")

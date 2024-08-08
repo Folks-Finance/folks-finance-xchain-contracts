@@ -165,7 +165,7 @@ library HubPoolLogic {
             pool.stableBorrowData.totalAmount -= principalPaid;
         } else pool.variableBorrowData.totalAmount -= principalPaid;
 
-        pool.depositData.totalAmount -= principalPaid - interestPaid;
+        pool.depositData.totalAmount -= principalPaid;
         repayWithCollateralPoolParams.fAmount = (principalPaid + interestPaid).toFAmount(
             pool.depositData.interestIndex
         );
