@@ -126,7 +126,7 @@ describe("PriceDeviationCircuitBreakerNode", async function () {
 
         const nodeOutput = await nodeManager.process(nodeId);
 
-        expect(nodeOutput.price).to.equal(externalNodePrice);
+        expect(nodeOutput.price).to.equal(constant42NodePrice);
       });
 
       it("Should process the third node price cause price th not met", async function () {
