@@ -343,8 +343,11 @@ library MathUtils {
         uint256 averageBorrowStableRate
     ) internal pure returns (uint256) {
         return
-            (totalStableDebt.mulDiv(averageBorrowStableRate, ONE_18_DP) +
-                borrowAmount.mulDiv(borrowStableRate, ONE_18_DP)).mulDiv(ONE_18_DP, totalStableDebt + borrowAmount);
+            (totalStableDebt.mulDiv(averageBorrowStableRate, ONE_18_DP, Math.Rounding.Ceil) +
+                borrowAmount.mulDiv(borrowStableRate, ONE_18_DP, Math.Rounding.Ceil)).mulDiv(
+                    ONE_18_DP,
+                    totalStableDebt + borrowAmount
+                );
     }
 
     /// @dev Calculates the average stable borrow interest rate after a stable borrow decrease.
@@ -360,9 +363,9 @@ library MathUtils {
         uint256 averageBorrowStableRate
     ) internal pure returns (uint256) {
         uint256 newTotalStableDebt = totalStableDebt - borrowAmount;
-        (, uint256 overallInterestAmount) = totalStableDebt.mulDiv(averageBorrowStableRate, ONE_18_DP).trySub(
-            borrowAmount.mulDiv(borrowStableRate, ONE_18_DP)
-        );
+        (, uint256 overallInterestAmount) = totalStableDebt
+            .mulDiv(averageBorrowStableRate, ONE_18_DP, Math.Rounding.Ceil)
+            .trySub(borrowAmount.mulDiv(borrowStableRate, ONE_18_DP));
         return newTotalStableDebt > 0 ? overallInterestAmount.mulDiv(ONE_18_DP, newTotalStableDebt) : 0;
     }
 
