@@ -10,6 +10,7 @@ import "../nodes/ExternalNode.sol";
 import "../nodes/ChainlinkNode.sol";
 import "../nodes/PythNode.sol";
 import "../nodes/PriceDeviationSameOracleCircuitBreakerNode.sol";
+import "../nodes/PriceDeviationCircuitBreakerNode.sol";
 
 contract NodeManager is INodeManager {
     /// @notice Registers a new node.
@@ -138,7 +139,7 @@ contract NodeManager is INodeManager {
         }
         if (nodeDefinition.nodeType == NodeDefinition.NodeType.PRICE_DEVIATION_CIRCUIT_BREAKER) {
             return
-                PriceDeviationSameOracleCircuitBreakerNode.process(
+                PriceDeviationCircuitBreakerNode.process(
                     _processParentsNode(nodeDefinition),
                     nodeDefinition.parameters
                 );
@@ -175,7 +176,7 @@ contract NodeManager is INodeManager {
             return ExternalNode.isValid(nodeDefinition);
         }
         if (nodeDefinition.nodeType == NodeDefinition.NodeType.PRICE_DEVIATION_CIRCUIT_BREAKER) {
-            return PriceDeviationSameOracleCircuitBreakerNode.isValid(nodeDefinition);
+            return PriceDeviationCircuitBreakerNode.isValid(nodeDefinition);
         }
         if (nodeDefinition.nodeType == NodeDefinition.NodeType.REDUCER) {
             return ReducerNode.isValid(nodeDefinition);

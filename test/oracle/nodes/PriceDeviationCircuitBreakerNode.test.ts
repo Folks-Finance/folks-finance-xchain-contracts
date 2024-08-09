@@ -14,9 +14,11 @@ describe("PriceDeviationCircuitBreakerNode", async function () {
   let constantPriceAndTimestampNodeTimestamp: number;
   let mockConstantPriceAndTimestampNode: MockConstantPriceAndTimestampNode;
   let externalNodePrice: number;
+  let constant0NodePrice: number;
   let constant42NodePrice: number;
   let constant69NodePrice: number;
   let external22NodeId: string;
+  let constant0NodeId: string;
   let constant42NodeId: string;
   let constant69NodeId: string;
 
@@ -27,6 +29,7 @@ describe("PriceDeviationCircuitBreakerNode", async function () {
     constantPriceAndTimestampNodePrice = 22e14;
     externalNodePrice = constantPriceAndTimestampNodePrice;
     constantPriceAndTimestampNodeTimestamp = 69420;
+    constant0NodePrice = 0;
     constant42NodePrice = 42e14;
     constant69NodePrice = 69e14;
     mockConstantPriceAndTimestampNode = await MockConstantPriceAndTimestampNode.deploy(
@@ -38,6 +41,10 @@ describe("PriceDeviationCircuitBreakerNode", async function () {
     external22NodeId = await NodeManagerUtil.registerNode(
       nodeManager,
       NodeManagerUtil.encodeExternalNodeDefinition(await mockConstantPriceAndTimestampNode.getAddress())
+    );
+    constant0NodeId = await NodeManagerUtil.registerNode(
+      nodeManager,
+      NodeManagerUtil.encodeConstantNodeDefinition(constant0NodePrice)
     );
     constant42NodeId = await NodeManagerUtil.registerNode(
       nodeManager,
@@ -129,6 +136,20 @@ describe("PriceDeviationCircuitBreakerNode", async function () {
         expect(nodeOutput.price).to.equal(constant42NodePrice);
       });
 
+      it("Should process correctly with same oracle", async function () {
+        deviationTolerance = 1e18;
+        parentNodeIds = [constant42NodeId, constant69NodeId, external22NodeId];
+        const encodedParams = NodeManagerUtil.encodePriceDeviationCircuitBreakerNodeDefinition(
+          deviationTolerance,
+          parentNodeIds
+        );
+        nodeId = await NodeManagerUtil.registerNode(nodeManager, encodedParams);
+
+        const nodeOutput = await nodeManager.process(nodeId);
+
+        expect(nodeOutput.price).to.equal(constant42NodePrice);
+      });
+
       it("Should process the third node price cause price th not met", async function () {
         parentNodeIds = [external22NodeId, constant42NodeId, constant69NodeId];
         deviationTolerance =
@@ -156,6 +177,34 @@ describe("PriceDeviationCircuitBreakerNode", async function () {
         const nodeOutput = nodeManager.process(nodeId);
 
         await expect(nodeOutput).to.revertedWithCustomError(nodeManager, "DeviationToleranceExceeded");
+      });
+
+      it("Should raise ZeroPrice", async function () {
+        deviationTolerance = 1e18;
+        parentNodeIds = [constant0NodeId, external22NodeId];
+        const encodedParams = NodeManagerUtil.encodePriceDeviationCircuitBreakerNodeDefinition(
+          deviationTolerance,
+          parentNodeIds
+        );
+        nodeId = await NodeManagerUtil.registerNode(nodeManager, encodedParams);
+
+        const nodeOutput = nodeManager.process(nodeId);
+
+        await expect(nodeOutput).to.revertedWithCustomError(nodeManager, "ZeroPrice");
+      });
+
+      it("Should process third node cause of ZeroPrice", async function () {
+        deviationTolerance = 1e18;
+        parentNodeIds = [constant0NodeId, constant69NodeId, external22NodeId];
+        const encodedParams = NodeManagerUtil.encodePriceDeviationCircuitBreakerNodeDefinition(
+          deviationTolerance,
+          parentNodeIds
+        );
+        nodeId = await NodeManagerUtil.registerNode(nodeManager, encodedParams);
+
+        const nodeOutput = await nodeManager.process(nodeId);
+
+        expect(nodeOutput.price).to.equal(externalNodePrice);
       });
     });
   });
