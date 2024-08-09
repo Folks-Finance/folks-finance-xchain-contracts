@@ -5790,6 +5790,33 @@ describe("LoanManager (unit tests)", () => {
         .withArgs(loanId, pools.USDC.poolId);
     });
 
+    it("Should fail to switch borrow type when user loan is under-collateralised", async () => {
+      const { hub, loanManager, loanManagerAddress, oracleManager, pools, loanId, accountId, usdcStableInterestRate } =
+        await loadFixture(depositEtherAndVariableBorrowUSDCFixture);
+
+      const { poolId } = pools.USDC;
+
+      // Violator:
+      // Collateral 1 ETH = $1,428 -> 70% CF = $996.6
+      // Borrow 1,000 USDC = $1,000
+      let ethNodeOutputData = getNodeOutputData(BigInt(1428e18));
+      await oracleManager.setNodeOutput(pools.ETH.poolId, pools.ETH.tokenDecimals, ethNodeOutputData);
+
+      // switch variable borrow type to stable borrow type
+      const switchBorrowType = loanManager
+        .connect(hub)
+        .switchBorrowType(loanId, accountId, poolId, usdcStableInterestRate);
+      const loanManagerLogic = await ethers.getContractAt("LoanManagerLogic", loanManagerAddress);
+      await expect(switchBorrowType)
+        .to.be.revertedWithCustomError(loanManagerLogic, "UnderCollateralizedLoan")
+        .withArgs(loanId);
+
+      // switch borrow type when okay
+      ethNodeOutputData = getNodeOutputData(BigInt(1429e18));
+      await oracleManager.setNodeOutput(pools.ETH.poolId, pools.ETH.tokenDecimals, ethNodeOutputData);
+      await loanManager.connect(hub).switchBorrowType(loanId, accountId, poolId, usdcStableInterestRate);
+    });
+
     it("Should fail to switch borrow type when sender is not hub", async () => {
       const { user, loanManager, pools, loanId, accountId, usdcStableInterestRate } = await loadFixture(
         depositEtherAndVariableBorrowUSDCFixture

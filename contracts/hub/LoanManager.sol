@@ -278,7 +278,9 @@ contract LoanManager is ReentrancyGuard, ILoanManager, LoanManagerState {
 
         LoanManagerLogic.executeSwitchBorrowType(
             _userLoans,
+            _loanTypes,
             _pools,
+            _oracleManager,
             DataTypes.ExecuteSwitchBorrowTypeParams({ loanId: loanId, poolId: poolId, maxStableRate: maxStableRate })
         );
     }
