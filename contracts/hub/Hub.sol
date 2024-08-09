@@ -67,7 +67,7 @@ contract Hub is BridgeMessenger {
         // get amount to claim and clear
         uint256 amount = pool.clearTokenFees();
 
-        // send fees to designiated recipient
+        // send fees to designated recipient
         bytes32 recipient = pool.getTokenFeeRecipient();
         sendTokenToUser(
             returnAdapterId,
@@ -80,13 +80,7 @@ contract Hub is BridgeMessenger {
 
     function directOperation(Messages.Action action, bytes32 accountId, bytes memory data) external nonReentrant {
         // check sender has permission for relevant operations
-        bool isRegistered = accountManager.isAddressRegisteredToAccount(
-            accountId,
-            hubChainId,
-            Messages.convertEVMAddressToGenericAddress(msg.sender)
-        );
-        bool isDelegate = accountManager.isDelegate(accountId, msg.sender);
-        if (!(isRegistered || isDelegate)) revert IAccountManager.NoPermissionOnHub(accountId, msg.sender);
+        verifyCallerPermissionOnHub(accountId, msg.sender);
 
         // switch on payload action
         uint256 index = 0;
@@ -308,11 +302,45 @@ contract Hub is BridgeMessenger {
         }
     }
 
-    function _reverseMessage(Messages.MessageReceived memory message, bytes memory extraArgs) internal override {
+    function _retryMessage(
+        Messages.MessageReceived memory message,
+        address caller,
+        bytes memory extraArgs
+    ) internal override {
         Messages.MessagePayload memory payload = Messages.decodeActionPayload(message.payload);
 
-        // check sender has permission for relevant operations, overriding account id if neccessary
-        bytes32 accountId = extraArgs.length == 0 ? payload.accountId : extraArgs.toBytes32(0);
+        // override message return params if applicable
+        if (extraArgs.length == 34) {
+            message.returnAdapterId = extraArgs.toUint16(0);
+            message.returnGasLimit = extraArgs.toUint256(2);
+        }
+
+        // check caller has permission
+        verifyCallerPermissionOnHub(payload.accountId, caller);
+
+        // call receive message (incl check sender has permission for relevant operations)
+        return _receiveMessage(message);
+    }
+
+    function _reverseMessage(
+        Messages.MessageReceived memory message,
+        address caller,
+        bytes memory extraArgs
+    ) internal override {
+        Messages.MessagePayload memory payload = Messages.decodeActionPayload(message.payload);
+
+        // override account id and message return params if applicable
+        bytes32 accountId = payload.accountId;
+        if (extraArgs.length == 66) {
+            accountId = extraArgs.toBytes32(0);
+            message.returnAdapterId = extraArgs.toUint16(32);
+            message.returnGasLimit = extraArgs.toUint256(34);
+        }
+
+        // check caller has permission
+        verifyCallerPermissionOnHub(accountId, caller);
+
+        // check sender has permission for relevant operations, overriding account id if necessary
         bool isRegistered = accountManager.isAddressRegisteredToAccount(
             accountId,
             message.sourceChainId,
@@ -348,6 +376,16 @@ contract Hub is BridgeMessenger {
             payload.userAddress,
             SendToken({ poolId: poolId, chainId: message.sourceChainId, amount: amount })
         );
+    }
+
+    function verifyCallerPermissionOnHub(bytes32 accountId, address caller) internal view {
+        bool isRegistered = accountManager.isAddressRegisteredToAccount(
+            accountId,
+            hubChainId,
+            Messages.convertEVMAddressToGenericAddress(caller)
+        );
+        bool isDelegate = accountManager.isDelegate(accountId, caller);
+        if (!(isRegistered || isDelegate)) revert IAccountManager.NoPermissionOnHub(accountId, caller);
     }
 
     function verifyTokenReceivedFromUser(

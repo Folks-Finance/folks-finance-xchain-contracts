@@ -5,8 +5,6 @@ import "../BridgeMessenger.sol";
 import "../libraries/Messages.sol";
 
 contract BridgeMessengerSender is BridgeMessenger {
-    event RecieveMessage(bytes32 messageId);
-
     constructor(IBridgeRouter bridgeRouter) BridgeMessenger(bridgeRouter) {}
 
     function sendMessage(Messages.MessageToSend memory message) external payable {
@@ -17,7 +15,11 @@ contract BridgeMessengerSender is BridgeMessenger {
         revert CannotReceiveMessage(message.messageId);
     }
 
-    function _reverseMessage(Messages.MessageReceived memory message, bytes memory) internal pure override {
+    function _retryMessage(Messages.MessageReceived memory message, address, bytes memory) internal pure override {
+        revert CannotRetryMessage(message.messageId);
+    }
+
+    function _reverseMessage(Messages.MessageReceived memory message, address, bytes memory) internal pure override {
         revert CannotReverseMessage(message.messageId);
     }
 }

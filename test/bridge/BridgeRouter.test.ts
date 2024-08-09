@@ -53,7 +53,7 @@ describe("BridgeRouter (unit tests)", () => {
   }
 
   async function addAdapterFixture() {
-    const { admin, messager, unusedUsers, bridgeRouter, bridgeRouterAddress } =
+    const { admin, messager, user, unusedUsers, bridgeRouter, bridgeRouterAddress } =
       await loadFixture(deployBridgeRouterFixture);
 
     // deploy and add adapter
@@ -65,6 +65,7 @@ describe("BridgeRouter (unit tests)", () => {
     return {
       admin,
       messager,
+      user,
       unusedUsers,
       bridgeRouter,
       bridgeRouterAddress,
@@ -75,8 +76,17 @@ describe("BridgeRouter (unit tests)", () => {
   }
 
   async function deployBridgeMessengerFixture() {
-    const { admin, messager, unusedUsers, bridgeRouter, bridgeRouterAddress, adapter, adapterId, adapterAddress } =
-      await loadFixture(addAdapterFixture);
+    const {
+      admin,
+      messager,
+      user,
+      unusedUsers,
+      bridgeRouter,
+      bridgeRouterAddress,
+      adapter,
+      adapterId,
+      adapterAddress,
+    } = await loadFixture(addAdapterFixture);
 
     // deploy messenger and sender
     const bridgeMessenger = await new BridgeMessengerReceiver__factory(admin).deploy(bridgeRouter);
@@ -87,6 +97,7 @@ describe("BridgeRouter (unit tests)", () => {
     return {
       admin,
       messager,
+      user,
       unusedUsers,
       bridgeRouter,
       bridgeRouterAddress,
@@ -102,6 +113,7 @@ describe("BridgeRouter (unit tests)", () => {
     const {
       admin,
       messager,
+      user,
       unusedUsers,
       bridgeRouter,
       bridgeRouterAddress,
@@ -132,6 +144,7 @@ describe("BridgeRouter (unit tests)", () => {
     return {
       admin,
       messager,
+      user,
       unusedUsers,
       bridgeRouter,
       bridgeRouterAddress,
@@ -512,7 +525,7 @@ describe("BridgeRouter (unit tests)", () => {
   });
 
   describe("Receive Message", () => {
-    it("Should successfuly receive message", async () => {
+    it("Should successfully receive message", async () => {
       const { unusedUsers, bridgeRouter, adapter, adapterId, adapterAddress, bridgeMessenger, bridgeMessengerAddress } =
         await loadFixture(deployBridgeMessengerFixture);
       const sender = unusedUsers[0];
@@ -605,7 +618,7 @@ describe("BridgeRouter (unit tests)", () => {
 
   describe("Retry Message", () => {
     it("Should remove from failed if retry succeeds", async () => {
-      const { bridgeRouter, adapterId, bridgeMessenger, message } = await loadFixture(deployFailedMessageFixture);
+      const { user, bridgeRouter, adapterId, bridgeMessenger, message } = await loadFixture(deployFailedMessageFixture);
 
       // balance before
       const accountBalance = await bridgeRouter.balances(accountId);
@@ -615,10 +628,15 @@ describe("BridgeRouter (unit tests)", () => {
       await bridgeMessenger.setShouldFail(false);
 
       // retry message
+      const extraArgs = getRandomBytes(BYTES32_LENGTH);
       const balance = BigInt(30000);
-      const retryMessage = await bridgeRouter.retryMessage(adapterId, message.messageId, message, { value: balance });
+      const retryMessage = await bridgeRouter
+        .connect(user)
+        .retryMessage(adapterId, message.messageId, message, extraArgs, { value: balance });
 
-      await expect(retryMessage).to.emit(bridgeMessenger, "ReceiveMessage").withArgs(message.messageId);
+      await expect(retryMessage)
+        .to.emit(bridgeMessenger, "RetryMessage")
+        .withArgs(message.messageId, user.address, extraArgs);
       await expect(retryMessage).to.emit(bridgeRouter, "MessageRetrySucceeded").withArgs(adapterId, message.messageId);
       expect(await bridgeRouter.seenMessages(adapterId, message.messageId)).to.be.true;
       expect((await bridgeRouter.failedMessages(adapterId, message.messageId))[0]).to.not.equal(message.messageId);
@@ -637,12 +655,15 @@ describe("BridgeRouter (unit tests)", () => {
       await bridgeMessenger.setShouldFail(true);
 
       // retry message
+      const extraArgs = getRandomBytes(BYTES32_LENGTH);
       const balance = BigInt(30000);
-      const retryMessage = await bridgeRouter.retryMessage(adapterId, message.messageId, message, { value: balance });
+      const retryMessage = await bridgeRouter.retryMessage(adapterId, message.messageId, message, extraArgs, {
+        value: balance,
+      });
 
-      const errorReason = bridgeMessenger.interface.encodeErrorResult("CannotReceiveMessage", [message.messageId]);
+      const errorReason = bridgeMessenger.interface.encodeErrorResult("CannotRetryMessage", [message.messageId]);
       const messageHash = getMessageReceivedHash(message);
-      await expect(retryMessage).not.to.emit(bridgeMessenger, "ReceiveMessage");
+      await expect(retryMessage).not.to.emit(bridgeMessenger, "RetryMessage");
       await expect(retryMessage)
         .to.emit(bridgeRouter, "MessageRetryFailed")
         .withArgs(adapterId, message.messageId, errorReason);
@@ -657,7 +678,8 @@ describe("BridgeRouter (unit tests)", () => {
 
       // retry message
       const messageId = getRandomBytes(BYTES32_LENGTH);
-      const retryMessage = bridgeRouter.retryMessage(adapterId, messageId, message);
+      const extraArgs = getRandomBytes(BYTES32_LENGTH);
+      const retryMessage = bridgeRouter.retryMessage(adapterId, messageId, message, extraArgs);
       await expect(retryMessage)
         .to.be.revertedWithCustomError(bridgeRouter, "FailedMessageUnknown")
         .withArgs(adapterId, messageId);
@@ -683,7 +705,8 @@ describe("BridgeRouter (unit tests)", () => {
       expect(await bridgeRouter.seenMessages(adapterId, message.messageId)).to.be.true;
 
       // retry message
-      const retryMessage = bridgeRouter.retryMessage(adapterId, message.messageId, message);
+      const extraArgs = getRandomBytes(BYTES32_LENGTH);
+      const retryMessage = bridgeRouter.retryMessage(adapterId, message.messageId, message, extraArgs);
       await expect(retryMessage)
         .to.be.revertedWithCustomError(bridgeRouter, "FailedMessageUnknown")
         .withArgs(adapterId, message.messageId);
@@ -696,8 +719,9 @@ describe("BridgeRouter (unit tests)", () => {
       await bridgeMessenger.setShouldFail(false);
 
       // retry message twice
-      await bridgeRouter.retryMessage(adapterId, message.messageId, message);
-      const retryMessage = bridgeRouter.retryMessage(adapterId, message.messageId, message);
+      const extraArgs = getRandomBytes(BYTES32_LENGTH);
+      await bridgeRouter.retryMessage(adapterId, message.messageId, message, extraArgs);
+      const retryMessage = bridgeRouter.retryMessage(adapterId, message.messageId, message, extraArgs);
       await expect(retryMessage)
         .to.be.revertedWithCustomError(bridgeRouter, "FailedMessageUnknown")
         .withArgs(adapterId, message.messageId);
@@ -706,7 +730,7 @@ describe("BridgeRouter (unit tests)", () => {
 
   describe("Reverse Message", () => {
     it("Should remove from failed if reverse succeeds", async () => {
-      const { bridgeRouter, adapterId, bridgeMessenger, message } = await loadFixture(deployFailedMessageFixture);
+      const { user, bridgeRouter, adapterId, bridgeMessenger, message } = await loadFixture(deployFailedMessageFixture);
 
       // balance before
       const accountBalance = await bridgeRouter.balances(accountId);
@@ -718,11 +742,15 @@ describe("BridgeRouter (unit tests)", () => {
       // reverse message
       const extraArgs = getRandomBytes(BYTES32_LENGTH);
       const balance = BigInt(30000);
-      const reverseMessage = await bridgeRouter.reverseMessage(adapterId, message.messageId, message, extraArgs, {
-        value: balance,
-      });
+      const reverseMessage = await bridgeRouter
+        .connect(user)
+        .reverseMessage(adapterId, message.messageId, message, extraArgs, {
+          value: balance,
+        });
 
-      await expect(reverseMessage).to.emit(bridgeMessenger, "ReverseMessage").withArgs(message.messageId, extraArgs);
+      await expect(reverseMessage)
+        .to.emit(bridgeMessenger, "ReverseMessage")
+        .withArgs(message.messageId, user.address, extraArgs);
       await expect(reverseMessage)
         .to.emit(bridgeRouter, "MessageReverseSucceeded")
         .withArgs(adapterId, message.messageId);
@@ -817,7 +845,7 @@ describe("BridgeRouter (unit tests)", () => {
   });
 
   describe("Increase balance", () => {
-    it("Should successfuly increase balance by msg.value", async () => {
+    it("Should successfully increase balance by msg.value", async () => {
       const { bridgeRouter } = await loadFixture(deployBridgeRouterFixture);
 
       // balance before

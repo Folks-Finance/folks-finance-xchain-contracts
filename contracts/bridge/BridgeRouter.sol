@@ -122,7 +122,7 @@ abstract contract BridgeRouter is IBridgeRouter, AccessControlDefaultAdminRules 
 
         // call handler with received payload
         try BridgeMessenger(handler).receiveMessage(message) {
-            // emit message received as suceeded
+            // emit message received as succeeded
             emit MessageSucceeded(adapterId, message.messageId);
         } catch (bytes memory err) {
             // don't revert so GMP doesn't revert
@@ -136,7 +136,8 @@ abstract contract BridgeRouter is IBridgeRouter, AccessControlDefaultAdminRules 
     function retryMessage(
         uint16 adapterId,
         bytes32 messageId,
-        Messages.MessageReceived memory message
+        Messages.MessageReceived memory message,
+        bytes memory extraArgs
     ) external payable {
         // verify failed message is known
         bytes32 messageHash = _verifyFailedMessage(adapterId, messageId, message);
@@ -154,8 +155,8 @@ abstract contract BridgeRouter is IBridgeRouter, AccessControlDefaultAdminRules 
         delete failedMessages[adapterId][message.messageId];
 
         // call handler with received payload
-        try BridgeMessenger(handler).receiveMessage(message) {
-            // emit message retry as suceeded
+        try BridgeMessenger(handler).retryMessage(message, msg.sender, extraArgs) {
+            // emit message retry as succeeded
             emit MessageRetrySucceeded(adapterId, message.messageId);
         } catch (bytes memory err) {
             // store and emit message retry as failed
@@ -186,8 +187,8 @@ abstract contract BridgeRouter is IBridgeRouter, AccessControlDefaultAdminRules 
         delete failedMessages[adapterId][message.messageId];
 
         // call handler with received payload
-        try BridgeMessenger(handler).reverseMessage(message, extraArgs) {
-            // emit message reverse as suceeded
+        try BridgeMessenger(handler).reverseMessage(message, msg.sender, extraArgs) {
+            // emit message reverse as succeeded
             emit MessageReverseSucceeded(adapterId, message.messageId);
         } catch (bytes memory err) {
             // store and emit message reverse as failed

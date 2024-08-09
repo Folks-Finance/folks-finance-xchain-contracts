@@ -21,6 +21,7 @@ contract BridgeRouterReceiver is IBridgeRouter {
         bytes extraArgs
     );
     event MessageReceived(Messages.MessageReceived message);
+    event MessageRetried(Messages.MessageReceived message);
     event MessageReversed(Messages.MessageReceived message);
     event MessageFailed(bytes32 indexed messageId, bytes reason);
     event MessageSucceeded(bytes32 indexed messageId);
@@ -60,12 +61,27 @@ contract BridgeRouterReceiver is IBridgeRouter {
         emit MessageReceived(message);
     }
 
+    function retryMessage(Messages.MessageReceived memory message, bytes memory extraArgs) external payable {
+        // convert handler to address type (from lower 20 bytes)
+        address handler = Messages.convertGenericAddressToEVMAddress(message.handler);
+
+        // try to receive message
+        try BridgeMessenger(handler).retryMessage(message, msg.sender, extraArgs) {
+            emit MessageSucceeded(message.messageId);
+        } catch (bytes memory err) {
+            emit MessageFailed(message.messageId, err);
+            return;
+        }
+
+        emit MessageRetried(message);
+    }
+
     function reverseMessage(Messages.MessageReceived memory message, bytes memory extraArgs) external payable {
         // convert handler to address type (from lower 20 bytes)
         address handler = Messages.convertGenericAddressToEVMAddress(message.handler);
 
         // try to receive message
-        try BridgeMessenger(handler).reverseMessage(message, extraArgs) {
+        try BridgeMessenger(handler).reverseMessage(message, msg.sender, extraArgs) {
             emit MessageSucceeded(message.messageId);
         } catch (bytes memory err) {
             emit MessageFailed(message.messageId, err);

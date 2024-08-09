@@ -691,8 +691,32 @@ describe("SpokeCommon contract (unit tests)", () => {
     await expect(receiveMessage).to.be.revertedWithCustomError(spokeCommon, "CannotReceiveMessage").withArgs(messageId);
   });
 
+  it("Should fail to retry message", async () => {
+    const { user, spokeCommon, spokeAddress, bridgeRouterAddress, bridgeRouterSigner } =
+      await loadFixture(deploySpokeFixture);
+
+    // fund bridge router to send transaction
+    setBalance(bridgeRouterAddress, 1e18);
+
+    // retry message
+    const messageId: string = getRandomBytes(BYTES32_LENGTH);
+    const accountId: string = getAccountIdBytes("ACCOUNT_ID");
+    const message: MessageReceived = {
+      messageId: messageId,
+      sourceChainId: BigInt(0),
+      sourceAddress: convertEVMAddressToGenericAddress(getRandomAddress()),
+      handler: convertEVMAddressToGenericAddress(spokeAddress),
+      payload: buildMessagePayload(0, accountId, getRandomAddress(), "0x"),
+      returnAdapterId: BigInt(0),
+      returnGasLimit: BigInt(0),
+    };
+    const extraArgs = "0x";
+    const receiveMessage = spokeCommon.connect(bridgeRouterSigner).retryMessage(message, user.address, extraArgs);
+    await expect(receiveMessage).to.be.revertedWithCustomError(spokeCommon, "CannotRetryMessage").withArgs(messageId);
+  });
+
   it("Should fail to reverse message", async () => {
-    const { spokeCommon, spokeAddress, bridgeRouterAddress, bridgeRouterSigner } =
+    const { user, spokeCommon, spokeAddress, bridgeRouterAddress, bridgeRouterSigner } =
       await loadFixture(deploySpokeFixture);
 
     // fund bridge router to send transaction
@@ -711,7 +735,7 @@ describe("SpokeCommon contract (unit tests)", () => {
       returnGasLimit: BigInt(0),
     };
     const extraArgs = "0x";
-    const receiveMessage = spokeCommon.connect(bridgeRouterSigner).reverseMessage(message, extraArgs);
+    const receiveMessage = spokeCommon.connect(bridgeRouterSigner).reverseMessage(message, user.address, extraArgs);
     await expect(receiveMessage).to.be.revertedWithCustomError(spokeCommon, "CannotReverseMessage").withArgs(messageId);
   });
 });
