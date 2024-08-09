@@ -721,10 +721,12 @@ describe("HubPool (unit tests)", () => {
 
       // set pool data with interest data
       const lastUpdateTimestamp = BigInt(await getLatestBlockTimestamp());
+      const depositTotalAmount = BigInt(1e18);
       const borrowInterestRate = BigInt(0.048330237577e18);
       const borrowInterestIndex = BigInt(1.1394253233e18);
       const stableBorrowInterestRate = BigInt(0.14329e18);
       const poolData = getInitialPoolData();
+      poolData.depositData.totalAmount = depositTotalAmount;
       poolData.variableBorrowData.interestRate = borrowInterestRate;
       poolData.variableBorrowData.interestIndex = borrowInterestIndex;
       poolData.stableBorrowData.interestRate = stableBorrowInterestRate;
@@ -816,8 +818,45 @@ describe("HubPool (unit tests)", () => {
       await expect(preparePoolForBorrow).to.be.revertedWithCustomError(hubPoolLogic, "DeprecatedPool");
     });
 
+    it("Should fail to prepare pool for borrow when insufficient liquidity", async () => {
+      const { loanManager, hubPool, hubPoolLogicAddress, oracleManager, poolId } =
+        await loadFixture(deployHubPoolFixture);
+
+      // set price
+      const ethNodeOutputData = getNodeOutputData(BigInt(1000e18));
+      await oracleManager.setNodeOutput(poolId, ethDecimals, ethNodeOutputData);
+
+      // set pool data with deposit and debt data
+      const depositTotalAmount = BigInt(10e18);
+      const variableBorrowTotalAmount = BigInt(5e18);
+      const stableBorrowTotalAmount = BigInt(4e18);
+      const available = depositTotalAmount - (variableBorrowTotalAmount + stableBorrowTotalAmount);
+      const poolData = getInitialPoolData();
+      poolData.depositData.totalAmount = depositTotalAmount;
+      poolData.variableBorrowData.totalAmount = variableBorrowTotalAmount;
+      poolData.stableBorrowData.totalAmount = stableBorrowTotalAmount;
+      await hubPool.setPoolData(poolData);
+
+      // prepare pool for borrow when insufficient liquidity
+      let amount = available + BigInt(1);
+      const maxStableRate = 0;
+      const preparePoolForBorrow = hubPool.connect(loanManager).preparePoolForBorrow(amount, maxStableRate);
+      const hubPoolLogic = await ethers.getContractAt("HubPoolLogic", hubPoolLogicAddress);
+      await expect(preparePoolForBorrow).to.be.revertedWithCustomError(hubPoolLogic, "InsufficientLiquidity");
+
+      // prepare pool for borrow when liquidity okay
+      amount = available;
+      await hubPool.connect(loanManager).preparePoolForBorrow(amount, maxStableRate);
+    });
+
     it("Should fail to prepare pool for borrow when stable borrow not supported", async () => {
       const { admin, loanManager, hubPool, hubPoolLogicAddress } = await loadFixture(deployHubPoolFixture);
+
+      // set pool data with deposit data
+      const depositTotalAmount = BigInt(10e18);
+      const poolData = getInitialPoolData();
+      poolData.depositData.totalAmount = depositTotalAmount;
+      await hubPool.setPoolData(poolData);
 
       // set pool to not support stable borrow
       const configData = {
@@ -830,7 +869,6 @@ describe("HubPool (unit tests)", () => {
 
       // prepare pool for borrow when stable borrow
       const amount = BigInt(1);
-      const poolData = getInitialPoolData();
       let maxStableRate = poolData.stableBorrowData.interestRate;
       const preparePoolForBorrow = hubPool.connect(loanManager).preparePoolForBorrow(amount, maxStableRate);
       const hubPoolLogic = await ethers.getContractAt("HubPoolLogic", hubPoolLogicAddress);
