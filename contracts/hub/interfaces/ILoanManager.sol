@@ -17,6 +17,7 @@ interface ILoanManager {
     event DeleteUserLoan(bytes32 loanId, bytes32 indexed accountId);
 
     function HUB_ROLE() external view returns (bytes32);
+    function REBALANCER_ROLE() external view returns (bytes32);
 
     function getPool(uint8 poolId) external view returns (IHubPool);
 
