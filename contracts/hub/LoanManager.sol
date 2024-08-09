@@ -39,14 +39,17 @@ contract LoanManager is ReentrancyGuard, ILoanManager, LoanManagerState {
     }
 
     function createUserLoan(
-        bytes32 loanId,
+        bytes4 nonce,
         bytes32 accountId,
         uint16 loanTypeId,
         bytes32 loanName
-    ) external override onlyRole(HUB_ROLE) nonReentrant {
-        // check loan types exists, is not deprecated and no existing user loan for same loan id
+    ) external override onlyRole(HUB_ROLE) nonReentrant returns (bytes32 loanId) {
+        // check loan types exists and is not deprecated
         if (!isLoanTypeCreated(loanTypeId)) revert LoanTypeUnknown(loanTypeId);
         if (isLoanTypeDeprecated(loanTypeId)) revert LoanTypeDeprecated(loanTypeId);
+
+        // generate loan id and check no existing user loan for same loan id
+        loanId = keccak256(abi.encodePacked(accountId, nonce));
         if (isUserLoanActive(loanId)) revert UserLoanAlreadyCreated(loanId);
 
         // create loan

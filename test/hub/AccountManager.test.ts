@@ -4,11 +4,14 @@ import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { AccountManager__factory } from "../../typechain-types";
 import {
   BYTES32_LENGTH,
+  BYTES4_LENGTH,
   convertEVMAddressToGenericAddress,
   convertStringToBytes,
+  generateAccountId,
   getAccountIdBytes,
   getEmptyBytes,
   getRandomAddress,
+  getRandomBytes,
 } from "../utils/bytes";
 import { SECONDS_IN_DAY } from "../utils/time";
 
@@ -31,15 +34,16 @@ describe("AccountManager (unit tests)", () => {
 
     const [user, ...unusedUsers] = oldUnusedUsers;
 
-    const accountId: string = getAccountIdBytes("ACCOUNT_ID");
     const spokeChainId = 0;
     const userAddr = convertEVMAddressToGenericAddress(user.address);
     const refAccountId: string = getEmptyBytes(BYTES32_LENGTH);
+    const nonce: string = getRandomBytes(BYTES4_LENGTH);
+    const accountId: string = generateAccountId(userAddr, spokeChainId, nonce);
     const createAccount = await accountManager
       .connect(hub)
-      .createAccount(accountId, spokeChainId, userAddr, refAccountId);
+      .createAccount(accountId, spokeChainId, userAddr, nonce, refAccountId);
 
-    return { hub, unusedUsers, accountManager, createAccount, accountId, spokeChainId, userAddr, refAccountId };
+    return { hub, unusedUsers, accountManager, createAccount, accountId, spokeChainId, userAddr, nonce, refAccountId };
   }
 
   async function inviteAddressFixture() {
@@ -148,19 +152,22 @@ describe("AccountManager (unit tests)", () => {
       const { unusedUsers, accountManager } = await loadFixture(deployAccountManagerFixture);
       const sender = unusedUsers[0];
 
-      const accountId: string = getAccountIdBytes("ACCOUNT_ID");
       const chainId = 0;
       const userAddr = convertEVMAddressToGenericAddress(unusedUsers[1].address);
       const refAccountId: string = getEmptyBytes(BYTES32_LENGTH);
+      const nonce: string = getRandomBytes(BYTES4_LENGTH);
+      const accountId: string = generateAccountId(userAddr, chainId, nonce);
 
       // create account using not hub
-      const createAccount = accountManager.connect(sender).createAccount(accountId, chainId, userAddr, refAccountId);
+      const createAccount = accountManager
+        .connect(sender)
+        .createAccount(accountId, chainId, userAddr, nonce, refAccountId);
       await expect(createAccount)
         .to.be.revertedWithCustomError(accountManager, "AccessControlUnauthorizedAccount")
         .withArgs(sender.address, HUB_ROLE);
     });
 
-    it("Should successfuly create account", async () => {
+    it("Should successfully create account", async () => {
       const { accountManager, accountId, spokeChainId, userAddr, refAccountId, createAccount } =
         await loadFixture(createAccountFixture);
 
@@ -178,7 +185,7 @@ describe("AccountManager (unit tests)", () => {
       expect(await accountManager.getAddressRegisteredToAccountOnChain(accountId, spokeChainId)).to.be.equal(userAddr);
     });
 
-    it("Should successfuly create account with referrer", async () => {
+    it("Should successfully create account with referrer", async () => {
       const {
         hub,
         unusedUsers,
@@ -192,11 +199,12 @@ describe("AccountManager (unit tests)", () => {
       expect(await accountManager.isAccountCreated(refAccountId)).to.be.true;
 
       // create account
-      const accountId: string = getAccountIdBytes("NEW_ACCOUNT_ID");
       const userAddr = convertEVMAddressToGenericAddress(user.address);
+      const nonce: string = getRandomBytes(BYTES4_LENGTH);
+      const accountId: string = generateAccountId(userAddr, spokeChainId, nonce);
       const createAccount = await accountManager
         .connect(hub)
-        .createAccount(accountId, spokeChainId, userAddr, refAccountId);
+        .createAccount(accountId, spokeChainId, userAddr, nonce, refAccountId);
 
       // verify account is created
       await expect(createAccount)
@@ -215,20 +223,23 @@ describe("AccountManager (unit tests)", () => {
     it("Should fail to create account when account id is empty", async () => {
       const { hub, unusedUsers, accountManager } = await loadFixture(deployAccountManagerFixture);
 
-      const accountId: string = getAccountIdBytes("");
       const chainId = 0;
       const userAddr = convertEVMAddressToGenericAddress(unusedUsers[0].address);
       const refAccountId: string = getEmptyBytes(BYTES32_LENGTH);
+      const nonce: string = getRandomBytes(BYTES4_LENGTH);
+      const accountId: string = getAccountIdBytes("");
 
       // create account with empty account id
-      const createAccount = accountManager.connect(hub).createAccount(accountId, chainId, userAddr, refAccountId);
+      const createAccount = accountManager
+        .connect(hub)
+        .createAccount(accountId, chainId, userAddr, nonce, refAccountId);
       await expect(createAccount)
         .to.be.revertedWithCustomError(accountManager, "AccountAlreadyCreated")
         .withArgs(accountId);
     });
 
     it("Should fail to create account when account id already in use", async () => {
-      const { hub, unusedUsers, accountManager, accountId, spokeChainId, refAccountId } =
+      const { hub, unusedUsers, accountManager, accountId, spokeChainId, nonce, refAccountId } =
         await loadFixture(createAccountFixture);
       const user2Addr = convertEVMAddressToGenericAddress(unusedUsers[0].address);
 
@@ -236,7 +247,9 @@ describe("AccountManager (unit tests)", () => {
       expect(await accountManager.isAccountCreated(accountId)).to.be.true;
 
       // create account with same account id
-      const createAccount = accountManager.connect(hub).createAccount(accountId, spokeChainId, user2Addr, refAccountId);
+      const createAccount = accountManager
+        .connect(hub)
+        .createAccount(accountId, spokeChainId, user2Addr, nonce, refAccountId);
       await expect(createAccount)
         .to.be.revertedWithCustomError(accountManager, "AccountAlreadyCreated")
         .withArgs(accountId);
@@ -249,13 +262,14 @@ describe("AccountManager (unit tests)", () => {
       expect(await accountManager.isAddressRegistered(spokeChainId, userAddr)).to.be.true;
 
       // verify new account
-      const newAccountId: string = getAccountIdBytes("NEW_ACCOUNT_ID");
+      const nonce: string = getRandomBytes(BYTES4_LENGTH);
+      const newAccountId: string = generateAccountId(userAddr, spokeChainId, nonce);
       expect(await accountManager.isAccountCreated(newAccountId)).to.be.false;
 
       // create new account with same user
       const createAccount = accountManager
         .connect(hub)
-        .createAccount(newAccountId, spokeChainId, userAddr, refAccountId);
+        .createAccount(newAccountId, spokeChainId, userAddr, nonce, refAccountId);
       await expect(createAccount)
         .to.be.revertedWithCustomError(accountManager, "AddressPreviouslyRegistered")
         .withArgs(spokeChainId, userAddr);
@@ -270,13 +284,35 @@ describe("AccountManager (unit tests)", () => {
       expect(await accountManager.isAccountCreated(refAccountId)).to.be.false;
 
       // create new account with unknown referrer
-      const accountId: string = getAccountIdBytes("ACCOUNT_ID");
       const spokeChainId = 0;
       const userAddr = convertEVMAddressToGenericAddress(user.address);
-      const createAccount = accountManager.connect(hub).createAccount(accountId, spokeChainId, userAddr, refAccountId);
+      const nonce: string = getRandomBytes(BYTES4_LENGTH);
+      const accountId: string = generateAccountId(userAddr, spokeChainId, nonce);
+      const createAccount = accountManager
+        .connect(hub)
+        .createAccount(accountId, spokeChainId, userAddr, nonce, refAccountId);
       await expect(createAccount)
         .to.be.revertedWithCustomError(accountManager, "InvalidReferrerAccount")
         .withArgs(refAccountId);
+    });
+
+    it("Should fail to create account when generated account id doesn't match", async () => {
+      const { hub, unusedUsers, accountManager } = await loadFixture(deployAccountManagerFixture);
+      const [user] = unusedUsers;
+
+      // create new account with mismatch
+      const spokeChainId = 0;
+      const userAddr = convertEVMAddressToGenericAddress(user.address);
+      const refAccountId: string = getEmptyBytes(BYTES32_LENGTH);
+      const nonce: string = getRandomBytes(BYTES4_LENGTH);
+      const accountId: string = getAccountIdBytes("Mismatch");
+      const genAccountId: string = generateAccountId(userAddr, spokeChainId, nonce);
+      const createAccount = accountManager
+        .connect(hub)
+        .createAccount(accountId, spokeChainId, userAddr, nonce, refAccountId);
+      await expect(createAccount)
+        .to.be.revertedWithCustomError(accountManager, "GeneratedAccountIdMismatch")
+        .withArgs(genAccountId, accountId);
     });
   });
 
@@ -298,7 +334,7 @@ describe("AccountManager (unit tests)", () => {
         .withArgs(sender.address, HUB_ROLE);
     });
 
-    it("Should successfuly invite address", async () => {
+    it("Should successfully invite address", async () => {
       const { accountManager, inviteAddress, accountId, inviteeChainId, inviteeUserAddr, refAccountId } =
         await loadFixture(inviteAddressFixture);
 
@@ -317,7 +353,7 @@ describe("AccountManager (unit tests)", () => {
       await expect(accountManager.getAddressRegisteredToAccountOnChain(accountId, inviteeChainId)).to.be.reverted;
     });
 
-    it("Should successfuly invite address with referrer", async () => {
+    it("Should successfully invite address with referrer", async () => {
       const {
         hub,
         unusedUsers: oldUnusedUsers,
@@ -331,9 +367,10 @@ describe("AccountManager (unit tests)", () => {
       expect(await accountManager.isAccountCreated(refAccountId)).to.be.true;
 
       // create account and invite address
-      const accountId: string = getAccountIdBytes("NEW_ACCOUNT_ID");
       const userAddr = convertEVMAddressToGenericAddress(user.address);
-      await accountManager.connect(hub).createAccount(accountId, spokeChainId, userAddr, refAccountId);
+      const nonce: string = getRandomBytes(BYTES4_LENGTH);
+      const accountId: string = generateAccountId(userAddr, spokeChainId, nonce);
+      await accountManager.connect(hub).createAccount(accountId, spokeChainId, userAddr, nonce, refAccountId);
       const inviteeChainId = 1;
       const inviteeUserAddr = convertEVMAddressToGenericAddress(inviteeUser.address);
       const inviteAddress = await accountManager
@@ -355,7 +392,7 @@ describe("AccountManager (unit tests)", () => {
       await expect(accountManager.getAddressRegisteredToAccountOnChain(accountId, inviteeChainId)).to.be.reverted;
     });
 
-    it("Should successfuly invite address and override existing invited address for same account+chain", async () => {
+    it("Should successfully invite address and override existing invited address for same account+chain", async () => {
       const { hub, unusedUsers, accountManager, accountId, inviteeChainId, inviteeUserAddr } =
         await loadFixture(inviteAddressFixture);
 
@@ -493,7 +530,7 @@ describe("AccountManager (unit tests)", () => {
         .withArgs(sender.address, HUB_ROLE);
     });
 
-    it("Should successfuly accept invite", async () => {
+    it("Should successfully accept invite", async () => {
       const { accountManager, acceptInvite, accountId, inviteeChainId, inviteeUserAddr } =
         await loadFixture(acceptInviteAddressFixture);
 
@@ -569,7 +606,7 @@ describe("AccountManager (unit tests)", () => {
         .withArgs(sender.address, HUB_ROLE);
     });
 
-    it("Should successfuly de-register registered addresss", async () => {
+    it("Should successfully de-register registered addresss", async () => {
       const {
         hub,
         accountManager,
@@ -599,7 +636,7 @@ describe("AccountManager (unit tests)", () => {
       await expect(accountManager.getAddressRegisteredToAccountOnChain(accountId, spokeChainId)).to.be.reverted;
     });
 
-    it("Should successfuly de-invite invited address", async () => {
+    it("Should successfully de-invite invited address", async () => {
       const { hub, accountManager, accountId, inviteeChainId, inviteeUserAddr } =
         await loadFixture(inviteAddressFixture);
 
@@ -675,7 +712,7 @@ describe("AccountManager (unit tests)", () => {
         .withArgs(sender.address, HUB_ROLE);
     });
 
-    it("Should successfuly add delegate", async () => {
+    it("Should successfully add delegate", async () => {
       const { accountManager, addDelegate, accountId, delegateAddress } = await loadFixture(addDelegateFixture);
 
       // verify add
@@ -722,7 +759,7 @@ describe("AccountManager (unit tests)", () => {
         .withArgs(sender.address, HUB_ROLE);
     });
 
-    it("Should successfuly remove delegate", async () => {
+    it("Should successfully remove delegate", async () => {
       const { hub, accountManager, accountId, delegateAddress } = await loadFixture(addDelegateFixture);
 
       // remove delegate

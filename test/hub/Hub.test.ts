@@ -12,6 +12,7 @@ import {
 } from "../../typechain-types";
 import {
   BYTES32_LENGTH,
+  BYTES4_LENGTH,
   UINT16_LENGTH,
   UINT256_LENGTH,
   UINT8_LENGTH,
@@ -324,7 +325,7 @@ describe("Hub (unit tests)", () => {
       });
     });
 
-    describe("Liquidatate", () => {
+    describe("Liquidate", () => {
       it("Should successfully call liquidate", async () => {
         const { hub, loanManager } = await loadFixture(deployHubFixture);
 
@@ -406,15 +407,21 @@ describe("Hub (unit tests)", () => {
     });
 
     describe("Create Account", () => {
-      it("Should successfuly call create account", async () => {
+      it("Should successfully call create account", async () => {
         const { user, bridgeRouter, accountManager, spokeChainId, spokeAddress, hubAddress } =
           await loadFixture(deployHubFixture);
 
         // call create account
         const messageId: string = getRandomBytes(BYTES32_LENGTH);
         const accountId: string = getAccountIdBytes("ACCOUNT_ID");
+        const nonce: string = getRandomBytes(BYTES4_LENGTH);
         const refAccountId: string = getAccountIdBytes("REFERRER");
-        const payload = buildMessagePayload(Action.CreateAccount, accountId, user.address, refAccountId);
+        const payload = buildMessagePayload(
+          Action.CreateAccount,
+          accountId,
+          user.address,
+          ethers.concat([nonce, refAccountId])
+        );
         const message: MessageReceived = {
           messageId,
           sourceChainId: BigInt(spokeChainId),
@@ -429,14 +436,14 @@ describe("Hub (unit tests)", () => {
         // verify create account is called
         const userAddr = convertEVMAddressToGenericAddress(user.address);
         await expect(createAccount)
-          .to.emit(accountManager, "CreateAccount")
-          .withArgs(accountId, spokeChainId, userAddr, refAccountId);
+          .to.emit(accountManager, "CreateAccount(bytes32,uint16,bytes32,bytes4,bytes32)")
+          .withArgs(accountId, spokeChainId, userAddr, nonce, refAccountId);
         await expect(createAccount).to.emit(bridgeRouter, "MessageSucceeded").withArgs(message.messageId);
       });
     });
 
     describe("Invite Address", () => {
-      it("Should successfuly call invite address", async () => {
+      it("Should successfully call invite address", async () => {
         const { user, unusedUsers, bridgeRouter, accountManager, spokeChainId, spokeAddress, hubAddress } =
           await loadFixture(deployHubFixture);
 
@@ -474,7 +481,7 @@ describe("Hub (unit tests)", () => {
         const { user, unusedUsers, bridgeRouter, accountManager, spokeChainId, spokeAddress, hubAddress } =
           await loadFixture(deployHubFixture);
 
-        // verify unregisterered
+        // verify unregistered
         await accountManager.setIsAddressRegisteredToAccount(false);
         const accountId: string = getAccountIdBytes("ACCOUNT_ID");
         const userAddr: string = convertEVMAddressToGenericAddress(user.address);
@@ -512,8 +519,8 @@ describe("Hub (unit tests)", () => {
     });
 
     describe("Accept invite", () => {
-      it("Should successfuly call accept invite", async () => {
-        const { user, bridgeRouter, accountManager, spokeChainId, spokeAddress, spokeAdapterAddress, hubAddress } =
+      it("Should successfully call accept invite", async () => {
+        const { user, bridgeRouter, accountManager, spokeChainId, spokeAddress, hubAddress } =
           await loadFixture(deployHubFixture);
 
         // call accept invite
@@ -577,7 +584,7 @@ describe("Hub (unit tests)", () => {
         const { user, bridgeRouter, accountManager, spokeChainId, spokeAddress, hubAddress } =
           await loadFixture(deployHubFixture);
 
-        // verify unregisterered
+        // verify unregistered
         await accountManager.setIsAddressRegisteredToAccount(false);
         const accountId: string = getAccountIdBytes("ACCOUNT_ID");
         const userAddr: string = convertEVMAddressToGenericAddress(user.address);
@@ -648,7 +655,7 @@ describe("Hub (unit tests)", () => {
         const { user, bridgeRouter, accountManager, spokeChainId, spokeAddress, hubAddress } =
           await loadFixture(deployHubFixture);
 
-        // verify unregisterered
+        // verify unregistered
         await accountManager.setIsAddressRegisteredToAccount(false);
         const accountId: string = getAccountIdBytes("ACCOUNT_ID");
         const userAddr: string = convertEVMAddressToGenericAddress(user.address);
@@ -719,7 +726,7 @@ describe("Hub (unit tests)", () => {
         const { user, bridgeRouter, accountManager, spokeChainId, spokeAddress, hubAddress } =
           await loadFixture(deployHubFixture);
 
-        // verify unregisterered
+        // verify unregistered
         await accountManager.setIsAddressRegisteredToAccount(false);
         const accountId: string = getAccountIdBytes("ACCOUNT_ID");
         const userAddr: string = convertEVMAddressToGenericAddress(user.address);
@@ -763,14 +770,14 @@ describe("Hub (unit tests)", () => {
         // call create user loan
         const messageId: string = getRandomBytes(BYTES32_LENGTH);
         const accountId: string = getAccountIdBytes("ACCOUNT_ID");
-        const loanId: string = getRandomBytes(BYTES32_LENGTH);
+        const nonce: string = getRandomBytes(BYTES4_LENGTH);
         const loanTypeId: number = 0;
         const loanName: string = getRandomBytes(BYTES32_LENGTH);
         const payload = buildMessagePayload(
           Action.CreateLoan,
           accountId,
           user.address,
-          ethers.concat([loanId, convertNumberToBytes(loanTypeId, UINT16_LENGTH), loanName])
+          ethers.concat([nonce, convertNumberToBytes(loanTypeId, UINT16_LENGTH), loanName])
         );
         const message: MessageReceived = {
           messageId,
@@ -786,7 +793,7 @@ describe("Hub (unit tests)", () => {
         // verify create user loan is called
         await expect(createUserLoan)
           .to.emit(loanManager, "CreateUserLoan")
-          .withArgs(loanId, accountId, loanTypeId, loanName);
+          .withArgs(ethers.zeroPadBytes(nonce, BYTES32_LENGTH), accountId, loanTypeId, loanName);
         await expect(createUserLoan).to.emit(bridgeRouter, "MessageSucceeded").withArgs(message.messageId);
       });
 
@@ -794,7 +801,7 @@ describe("Hub (unit tests)", () => {
         const { user, bridgeRouter, accountManager, spokeChainId, spokeAddress, hubAddress } =
           await loadFixture(deployHubFixture);
 
-        // verify unregisterered
+        // verify unregistered
         await accountManager.setIsAddressRegisteredToAccount(false);
         const accountId: string = getAccountIdBytes("ACCOUNT_ID");
         const userAddr: string = convertEVMAddressToGenericAddress(user.address);
@@ -802,13 +809,13 @@ describe("Hub (unit tests)", () => {
 
         // call create user loan
         const messageId: string = getRandomBytes(BYTES32_LENGTH);
-        const loanId: string = getRandomBytes(BYTES32_LENGTH);
+        const nonce: string = getRandomBytes(BYTES4_LENGTH);
         const loanTypeId: number = 0;
         const payload = buildMessagePayload(
           Action.CreateLoan,
           accountId,
           user.address,
-          ethers.concat([loanId, convertNumberToBytes(loanTypeId, UINT16_LENGTH)])
+          ethers.concat([nonce, convertNumberToBytes(loanTypeId, UINT16_LENGTH)])
         );
         const message: MessageReceived = {
           messageId,
@@ -869,7 +876,7 @@ describe("Hub (unit tests)", () => {
         const { user, bridgeRouter, accountManager, spokeChainId, spokeAddress, hubAddress } =
           await loadFixture(deployHubFixture);
 
-        // verify unregisterered
+        // verify unregistered
         await accountManager.setIsAddressRegisteredToAccount(false);
         const accountId: string = getAccountIdBytes("ACCOUNT_ID");
         const userAddr: string = convertEVMAddressToGenericAddress(user.address);
@@ -914,7 +921,7 @@ describe("Hub (unit tests)", () => {
         // call create user loan and deposit
         const messageId: string = getRandomBytes(BYTES32_LENGTH);
         const accountId: string = getAccountIdBytes("ACCOUNT_ID");
-        const loanId: string = getRandomBytes(BYTES32_LENGTH);
+        const nonce: string = getRandomBytes(BYTES4_LENGTH);
         const amount: bigint = BigInt(1e18);
         const loanTypeId: number = 0;
         const loanName: string = getRandomBytes(BYTES32_LENGTH);
@@ -923,7 +930,7 @@ describe("Hub (unit tests)", () => {
           accountId,
           user.address,
           ethers.concat([
-            loanId,
+            nonce,
             convertNumberToBytes(poolId, UINT8_LENGTH),
             convertNumberToBytes(amount, UINT256_LENGTH),
             convertNumberToBytes(loanTypeId, UINT16_LENGTH),
@@ -942,9 +949,10 @@ describe("Hub (unit tests)", () => {
         const createUserLoanAndDeposit = await bridgeRouter.receiveMessage(message);
 
         // verify create user loan and deposit are called
+        const loanId = ethers.zeroPadBytes(nonce, BYTES32_LENGTH);
         await expect(createUserLoanAndDeposit)
           .to.emit(loanManager, "CreateUserLoan")
-          .withArgs(loanId, accountId, loanTypeId, loanName);
+          .withArgs(ethers.zeroPadBytes(nonce, BYTES32_LENGTH), accountId, loanTypeId, loanName);
         await expect(createUserLoanAndDeposit)
           .to.emit(loanManager, "Deposit")
           .withArgs(loanId, accountId, poolId, amount);
@@ -963,7 +971,7 @@ describe("Hub (unit tests)", () => {
         // call create user loan and deposit
         const messageId: string = getRandomBytes(BYTES32_LENGTH);
         const accountId: string = getAccountIdBytes("ACCOUNT_ID");
-        const loanId: string = getRandomBytes(BYTES32_LENGTH);
+        const nonce: string = getRandomBytes(BYTES4_LENGTH);
         const amount: bigint = BigInt(1e18);
         const loanTypeId: number = 0;
         const loanName: string = getRandomBytes(BYTES32_LENGTH);
@@ -972,7 +980,7 @@ describe("Hub (unit tests)", () => {
           accountId,
           user.address,
           ethers.concat([
-            loanId,
+            nonce,
             convertNumberToBytes(poolId, UINT8_LENGTH),
             convertNumberToBytes(amount, UINT256_LENGTH),
             convertNumberToBytes(loanTypeId, UINT16_LENGTH),
@@ -1002,7 +1010,7 @@ describe("Hub (unit tests)", () => {
         const { user, poolId, bridgeRouter, accountManager, spokeChainId, spokeAddress, hubAddress } =
           await loadFixture(deployHubFixture);
 
-        // verify unregisterered
+        // verify unregistered
         await accountManager.setIsAddressRegisteredToAccount(false);
         const accountId: string = getAccountIdBytes("ACCOUNT_ID");
         const userAddr: string = convertEVMAddressToGenericAddress(user.address);
@@ -1130,7 +1138,7 @@ describe("Hub (unit tests)", () => {
         const { user, poolId, bridgeRouter, accountManager, spokeChainId, spokeAddress, hubAddress } =
           await loadFixture(deployHubFixture);
 
-        // verify unregisterered
+        // verify unregistered
         await accountManager.setIsAddressRegisteredToAccount(false);
         const accountId: string = getAccountIdBytes("ACCOUNT_ID");
         const userAddr: string = convertEVMAddressToGenericAddress(user.address);
@@ -1312,7 +1320,7 @@ describe("Hub (unit tests)", () => {
         const { user, poolId, bridgeRouter, accountManager, spokeChainId, spokeAddress, hubAddress } =
           await loadFixture(deployHubFixture);
 
-        // verify unregisterered
+        // verify unregistered
         await accountManager.setIsAddressRegisteredToAccount(false);
         const accountId: string = getAccountIdBytes("ACCOUNT_ID");
         const userAddr: string = convertEVMAddressToGenericAddress(user.address);
@@ -1476,7 +1484,7 @@ describe("Hub (unit tests)", () => {
         const { user, poolId, bridgeRouter, accountManager, spokeChainId, spokeAddress, hubAddress } =
           await loadFixture(deployHubFixture);
 
-        // verify unregisterered
+        // verify unregistered
         await accountManager.setIsAddressRegisteredToAccount(false);
         const accountId: string = getAccountIdBytes("ACCOUNT_ID");
         const userAddr: string = convertEVMAddressToGenericAddress(user.address);
@@ -1607,7 +1615,7 @@ describe("Hub (unit tests)", () => {
         const { user, poolId, bridgeRouter, accountManager, spokeChainId, spokeAddress, hubAddress } =
           await loadFixture(deployHubFixture);
 
-        // verify unregisterered
+        // verify unregistered
         await accountManager.setIsAddressRegisteredToAccount(false);
         const accountId: string = getAccountIdBytes("ACCOUNT_ID");
         const userAddr: string = convertEVMAddressToGenericAddress(user.address);
@@ -1692,7 +1700,7 @@ describe("Hub (unit tests)", () => {
         const { user, poolId, bridgeRouter, accountManager, spokeChainId, spokeAddress, hubAddress } =
           await loadFixture(deployHubFixture);
 
-        // verify unregisterered
+        // verify unregistered
         await accountManager.setIsAddressRegisteredToAccount(false);
         const accountId: string = getAccountIdBytes("ACCOUNT_ID");
         const userAddr: string = convertEVMAddressToGenericAddress(user.address);
@@ -1775,7 +1783,7 @@ describe("Hub (unit tests)", () => {
         const { user, poolId, bridgeRouter, accountManager, spokeChainId, spokeAddress, hubAddress } =
           await loadFixture(deployHubFixture);
 
-        // verify unregisterered
+        // verify unregistered
         await accountManager.setIsAddressRegisteredToAccount(false);
         const accountId: string = getAccountIdBytes("ACCOUNT_ID");
         const userAddr: string = convertEVMAddressToGenericAddress(user.address);
@@ -1855,7 +1863,7 @@ describe("Hub (unit tests)", () => {
         // call create user loan and deposit
         const messageId = getRandomBytes(BYTES32_LENGTH);
         const accountId: string = getAccountIdBytes("ACCOUNT_ID");
-        const loanId: string = getRandomBytes(BYTES32_LENGTH);
+        const nonce: string = getRandomBytes(BYTES4_LENGTH);
         const amount: bigint = BigInt(1e18);
         const loanTypeId: number = 0;
         const loanName: string = getRandomBytes(BYTES32_LENGTH);
@@ -1864,7 +1872,7 @@ describe("Hub (unit tests)", () => {
           accountId,
           user.address,
           ethers.concat([
-            loanId,
+            nonce,
             convertNumberToBytes(poolId, UINT8_LENGTH),
             convertNumberToBytes(amount, UINT256_LENGTH),
             convertNumberToBytes(loanTypeId, UINT16_LENGTH),
@@ -1914,7 +1922,7 @@ describe("Hub (unit tests)", () => {
         // call create user loan and deposit
         const messageId = getRandomBytes(BYTES32_LENGTH);
         const accountId: string = getAccountIdBytes("ACCOUNT_ID");
-        const loanId: string = getRandomBytes(BYTES32_LENGTH);
+        const nonce: string = getRandomBytes(BYTES4_LENGTH);
         const loanTypeId: number = 0;
         const loanName: string = getRandomBytes(BYTES32_LENGTH);
         const payload = buildMessagePayload(
@@ -1922,7 +1930,7 @@ describe("Hub (unit tests)", () => {
           accountId,
           user.address,
           ethers.concat([
-            loanId,
+            nonce,
             convertNumberToBytes(poolId, UINT8_LENGTH),
             convertNumberToBytes(amount, UINT256_LENGTH),
             convertNumberToBytes(loanTypeId, UINT16_LENGTH),
@@ -2137,7 +2145,7 @@ describe("Hub (unit tests)", () => {
         await expect(repay).to.emit(bridgeRouter, "MessageFailed").withArgs(messageId, errorReason);
       });
 
-      it("Should successfully call send token to user with overriden account id", async () => {
+      it("Should successfully call send token to user with overridden account id", async () => {
         const { user, pool, poolId, bridgeRouter, spokeChainId, spokeAddress, hubAddress } =
           await loadFixture(deployHubFixture);
 
@@ -2184,8 +2192,8 @@ describe("Hub (unit tests)", () => {
           returnAdapterId,
           returnGasLimit,
         };
-        const overridenAccountId = getAccountIdBytes("OVERRIDEN_ACCOUNT_ID");
-        const repay = bridgeRouter.reverseMessage(message, overridenAccountId);
+        const overriddenAccountId = getAccountIdBytes("OVERRIDDEN_ACCOUNT_ID");
+        const repay = bridgeRouter.reverseMessage(message, overriddenAccountId);
 
         // check pool called to get send token message
         await expect(repay)
@@ -2194,7 +2202,7 @@ describe("Hub (unit tests)", () => {
             bridgeRouter,
             returnAdapterId,
             returnGasLimit,
-            overridenAccountId,
+            overriddenAccountId,
             spokeChainId,
             amount,
             convertEVMAddressToGenericAddress(user.address)
@@ -2223,7 +2231,7 @@ describe("Hub (unit tests)", () => {
       const returnGasLimit = BigInt(300000);
       const amount: bigint = BigInt(1e18);
 
-      // verify unregisterered
+      // verify unregistered
       await accountManager.setIsAddressRegisteredToAccount(false);
       const accountId: string = getAccountIdBytes("ACCOUNT_ID");
       const userAddr: string = convertEVMAddressToGenericAddress(user.address);

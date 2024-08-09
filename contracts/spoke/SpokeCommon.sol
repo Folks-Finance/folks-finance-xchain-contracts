@@ -21,15 +21,17 @@ contract SpokeCommon is BridgeMessenger, SpokeState {
     /**
      * @notice Create account
      * @param params The parameters for sending message to hub chain
-     * @param accountId The account id to create
+     * @param accountId  account id to create
+     * @param nonce The nonce used to generate the account id
      * @param refAccountId The account id referrer (use zero bytes if no referrer)
      */
     function createAccount(
         Messages.MessageParams memory params,
         bytes32 accountId,
+        bytes4 nonce,
         bytes32 refAccountId
     ) external payable nonReentrant {
-        _doOperation(params, Messages.Action.CreateAccount, accountId, abi.encodePacked(refAccountId));
+        _doOperation(params, Messages.Action.CreateAccount, accountId, abi.encodePacked(nonce, refAccountId));
     }
 
     /**
@@ -108,18 +110,18 @@ contract SpokeCommon is BridgeMessenger, SpokeState {
      * @notice Create loan (alternative is to use "create loan and deposit" method)
      * @param params The parameters for sending message to hub chain
      * @param accountId The account id to create the loan in
-     * @param loanId The load id to create
+     * @param nonce The nonce used to generate the loan id
      * @param loanTypeId The load type to create
      * @param loanName The loan name to help identify the loan to user
      */
     function createLoan(
         Messages.MessageParams memory params,
         bytes32 accountId,
-        bytes32 loanId,
+        bytes4 nonce,
         uint16 loanTypeId,
         bytes32 loanName
     ) external payable nonReentrant {
-        _doOperation(params, Messages.Action.CreateLoan, accountId, abi.encodePacked(loanId, loanTypeId, loanName));
+        _doOperation(params, Messages.Action.CreateLoan, accountId, abi.encodePacked(nonce, loanTypeId, loanName));
     }
 
     /**

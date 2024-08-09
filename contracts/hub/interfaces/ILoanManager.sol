@@ -21,7 +21,12 @@ interface ILoanManager {
 
     function getPool(uint8 poolId) external view returns (IHubPool);
 
-    function createUserLoan(bytes32 loanId, bytes32 accountId, uint16 loanTypeId, bytes32 loanName) external;
+    function createUserLoan(
+        bytes4 nonce,
+        bytes32 accountId,
+        uint16 loanTypeId,
+        bytes32 loanName
+    ) external returns (bytes32 loanId);
     function deleteUserLoan(bytes32 loanId, bytes32 accountId) external;
     function deposit(bytes32 loanId, bytes32 accountId, uint8 poolId, uint256 amount) external;
     function depositFToken(bytes32 loanId, bytes32 accountId, uint8 poolId, address sender, uint256 fAmount) external;
@@ -31,7 +36,7 @@ interface ILoanManager {
         uint8 poolId,
         uint256 amount,
         bool isFAmount
-    ) external returns (uint256);
+    ) external returns (uint256 underlingAmount);
     function withdrawFToken(
         bytes32 loanId,
         bytes32 accountId,

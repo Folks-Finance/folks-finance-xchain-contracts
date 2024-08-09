@@ -38,7 +38,7 @@ abstract contract SpokeToken is BridgeMessenger, SpokeState, RateLimited {
      * @notice Create loan and deposit token into new loan
      * @param params The parameters for sending message to hub chain
      * @param accountId The account id of the loan
-     * @param loanId The loan id to create and deposit into
+     * @param nonce The nonce used to generate the loan id
      * @param amount The amount to deposit
      * @param loanTypeId The load type to create
      * @param loanName The loan name to help identify the loan to user
@@ -46,7 +46,7 @@ abstract contract SpokeToken is BridgeMessenger, SpokeState, RateLimited {
     function createLoanAndDeposit(
         Messages.MessageParams memory params,
         bytes32 accountId,
-        bytes32 loanId,
+        bytes4 nonce,
         uint256 amount,
         uint16 loanTypeId,
         bytes32 loanName
@@ -56,7 +56,7 @@ abstract contract SpokeToken is BridgeMessenger, SpokeState, RateLimited {
             Messages.Action.CreateLoanAndDeposit,
             accountId,
             amount,
-            abi.encodePacked(loanId, poolId, amount, loanTypeId, loanName)
+            abi.encodePacked(nonce, poolId, amount, loanTypeId, loanName)
         );
     }
 

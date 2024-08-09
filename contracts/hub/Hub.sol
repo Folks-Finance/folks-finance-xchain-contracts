@@ -158,9 +158,17 @@ contract Hub is BridgeMessenger {
         // switch on payload action
         uint256 index = 0;
         if (payload.action == Messages.Action.CreateAccount) {
+            bytes4 nonce = bytes4(payload.data.toUint32(index));
+            index += 4;
             bytes32 refAccountId = payload.data.toBytes32(index);
 
-            accountManager.createAccount(payload.accountId, message.sourceChainId, payload.userAddress, refAccountId);
+            accountManager.createAccount(
+                payload.accountId,
+                message.sourceChainId,
+                payload.userAddress,
+                nonce,
+                refAccountId
+            );
         } else if (payload.action == Messages.Action.InviteAddress) {
             uint16 inviteeChainId = payload.data.toUint16(index);
             index += 2;
@@ -184,20 +192,20 @@ contract Hub is BridgeMessenger {
 
             accountManager.removeDelegate(payload.accountId, delegateAddr);
         } else if (payload.action == Messages.Action.CreateLoan) {
-            bytes32 loanId = payload.data.toBytes32(index);
-            index += 32;
+            bytes4 nonce = bytes4(payload.data.toUint32(index));
+            index += 4;
             uint16 loanTypeId = payload.data.toUint16(index);
             index += 2;
             bytes32 loanName = payload.data.toBytes32(index);
 
-            loanManager.createUserLoan(loanId, payload.accountId, loanTypeId, loanName);
+            loanManager.createUserLoan(nonce, payload.accountId, loanTypeId, loanName);
         } else if (payload.action == Messages.Action.DeleteLoan) {
             bytes32 loanId = payload.data.toBytes32(index);
 
             loanManager.deleteUserLoan(loanId, payload.accountId);
         } else if (payload.action == Messages.Action.CreateLoanAndDeposit) {
-            bytes32 loanId = payload.data.toBytes32(index);
-            index += 32;
+            bytes4 nonce = bytes4(payload.data.toUint32(index));
+            index += 4;
             uint8 poolId = payload.data.toUint8(index);
             index += 1;
             uint256 amount = payload.data.toUint256(index);
@@ -206,7 +214,7 @@ contract Hub is BridgeMessenger {
             index += 2;
             bytes32 loanName = payload.data.toBytes32(index);
 
-            loanManager.createUserLoan(loanId, payload.accountId, loanTypeId, loanName);
+            bytes32 loanId = loanManager.createUserLoan(nonce, payload.accountId, loanTypeId, loanName);
             loanManager.deposit(loanId, payload.accountId, poolId, amount);
 
             // save token received
@@ -320,8 +328,9 @@ contract Hub is BridgeMessenger {
                 payload.action == Messages.Action.Repay)
         ) revert CannotReverseMessage(message.messageId);
 
-        // (create loan and) deposit/repay payload [loanId (ignored), poolId, amount, ...]
-        uint256 index = 32;
+        // create loan and deposit payload [nonce (ignored), poolId, amount, ...]
+        // deposit/repay payload [loanId (ignored), poolId, amount, ...]
+        uint256 index = payload.action == Messages.Action.CreateLoanAndDeposit ? 4 : 32;
         uint8 poolId = payload.data.toUint8(index);
         index += 1;
         uint256 amount = payload.data.toUint256(index);

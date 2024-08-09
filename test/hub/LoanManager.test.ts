@@ -12,7 +12,15 @@ import {
   RewardLogic__factory,
   UserLoanLogic__factory,
 } from "../../typechain-types";
-import { BYTES32_LENGTH, convertStringToBytes, getAccountIdBytes, getEmptyBytes, getRandomBytes } from "../utils/bytes";
+import {
+  BYTES32_LENGTH,
+  BYTES4_LENGTH,
+  convertStringToBytes,
+  generateLoanId,
+  getAccountIdBytes,
+  getEmptyBytes,
+  getRandomBytes,
+} from "../utils/bytes";
 import { SECONDS_IN_DAY, SECONDS_IN_HOUR, getLatestBlockTimestamp, getRandomInt } from "../utils/time";
 import { UserLoanBorrow, UserLoanCollateral } from "./libraries/assets/loanData";
 import { getNodeOutputData } from "./libraries/assets/oracleData";
@@ -311,10 +319,11 @@ describe("LoanManager (unit tests)", () => {
     } = await loadFixture(addPoolToLoanTypeFixture);
 
     // create user loan
-    const loanId = getRandomBytes(BYTES32_LENGTH);
     const accountId = getAccountIdBytes("ACCOUNT_ID");
+    const nonce = getRandomBytes(BYTES4_LENGTH);
+    const loanId = generateLoanId(accountId, nonce);
     const loanName = getRandomBytes(BYTES32_LENGTH);
-    const createUserLoan = await loanManager.connect(hub).createUserLoan(loanId, accountId, loanTypeId, loanName);
+    const createUserLoan = await loanManager.connect(hub).createUserLoan(nonce, accountId, loanTypeId, loanName);
 
     return {
       admin,
@@ -329,6 +338,7 @@ describe("LoanManager (unit tests)", () => {
       createUserLoan,
       loanTypeId,
       pools,
+      nonce,
       loanId,
       accountId,
       loanName,
@@ -736,10 +746,10 @@ describe("LoanManager (unit tests)", () => {
       expect(await loanManager.isLoanTypeCreated(loanTypeId)).to.be.false;
 
       // create user loan
-      const loanId = getRandomBytes(BYTES32_LENGTH);
       const accountId = getAccountIdBytes("ACCOUNT_ID");
+      const nonce = getRandomBytes(BYTES4_LENGTH);
       const loanName = getRandomBytes(BYTES32_LENGTH);
-      const createUserLoan = loanManager.connect(hub).createUserLoan(loanId, accountId, loanTypeId, loanName);
+      const createUserLoan = loanManager.connect(hub).createUserLoan(nonce, accountId, loanTypeId, loanName);
       await expect(createUserLoan).to.be.revertedWithCustomError(loanManager, "LoanTypeUnknown").withArgs(loanTypeId);
     });
 
@@ -750,23 +760,24 @@ describe("LoanManager (unit tests)", () => {
       expect(await loanManager.isLoanTypeDeprecated(loanTypeId)).to.be.true;
 
       // create user loan
-      const loanId = getRandomBytes(BYTES32_LENGTH);
       const accountId = getAccountIdBytes("ACCOUNT_ID");
+      const nonce = getRandomBytes(BYTES4_LENGTH);
       const loanName = getRandomBytes(BYTES32_LENGTH);
-      const createUserLoan = loanManager.connect(hub).createUserLoan(loanId, accountId, loanTypeId, loanName);
+      const createUserLoan = loanManager.connect(hub).createUserLoan(nonce, accountId, loanTypeId, loanName);
       await expect(createUserLoan)
         .to.be.revertedWithCustomError(loanManager, "LoanTypeDeprecated")
         .withArgs(loanTypeId);
     });
 
     it("Should fail to create user loan when already created", async () => {
-      const { hub, loanManager, loanId, accountId, loanTypeId, loanName } = await loadFixture(createUserLoanFixture);
+      const { hub, loanManager, nonce, loanId, accountId, loanTypeId, loanName } =
+        await loadFixture(createUserLoanFixture);
 
       // verify already created
       expect(await loanManager.isUserLoanActive(loanId)).to.be.true;
 
       // create user loan
-      const createUserLoan = loanManager.connect(hub).createUserLoan(loanId, accountId, loanTypeId, loanName);
+      const createUserLoan = loanManager.connect(hub).createUserLoan(nonce, accountId, loanTypeId, loanName);
       await expect(createUserLoan)
         .to.be.revertedWithCustomError(loanManager, "UserLoanAlreadyCreated")
         .withArgs(loanId);
@@ -776,10 +787,10 @@ describe("LoanManager (unit tests)", () => {
       const { user, loanManager, loanTypeId } = await loadFixture(addPoolsFixture);
 
       // create user loan
-      const loanId = getRandomBytes(BYTES32_LENGTH);
       const accountId = getAccountIdBytes("ACCOUNT_ID");
+      const nonce = getRandomBytes(BYTES4_LENGTH);
       const loanName = getRandomBytes(BYTES32_LENGTH);
-      const createUserLoan = loanManager.connect(user).createUserLoan(loanId, accountId, loanTypeId, loanName);
+      const createUserLoan = loanManager.connect(user).createUserLoan(nonce, accountId, loanTypeId, loanName);
       await expect(createUserLoan)
         .to.be.revertedWithCustomError(loanManager, "AccessControlUnauthorizedAccount")
         .withArgs(user.address, HUB_ROLE);
@@ -3683,12 +3694,12 @@ describe("LoanManager (unit tests)", () => {
       } = await loadFixture(depositEtherAndVariableBorrowUSDCFixture);
 
       // create liquidator loan
-      const liquidatorLoanId = getRandomBytes(BYTES32_LENGTH);
       const liquidatorAccountId = getAccountIdBytes("LIQUIDATOR_ACCOUNT_ID");
+      const nonce = getRandomBytes(BYTES4_LENGTH);
+      const liquidatorLoanId = generateLoanId(liquidatorAccountId, nonce);
       const liquidatorLoanName = getRandomBytes(BYTES32_LENGTH);
-      await loanManager
-        .connect(hub)
-        .createUserLoan(liquidatorLoanId, liquidatorAccountId, loanTypeId, liquidatorLoanName);
+
+      await loanManager.connect(hub).createUserLoan(nonce, liquidatorAccountId, loanTypeId, liquidatorLoanName);
 
       // deposit USDC into liquidator loan
       const liquidatorDepositAmount = BigInt(1000e6); // 10,000 USDC
@@ -3868,12 +3879,11 @@ describe("LoanManager (unit tests)", () => {
       } = await loadFixture(depositEtherAndStableBorrowUSDCFixture);
 
       // create liquidator loan
-      const liquidatorLoanId = getRandomBytes(BYTES32_LENGTH);
       const liquidatorAccountId = getAccountIdBytes("LIQUIDATOR_ACCOUNT_ID");
+      const nonce = getRandomBytes(BYTES4_LENGTH);
+      const liquidatorLoanId = generateLoanId(liquidatorAccountId, nonce);
       const liquidatorLoanName = getRandomBytes(BYTES32_LENGTH);
-      await loanManager
-        .connect(hub)
-        .createUserLoan(liquidatorLoanId, liquidatorAccountId, loanTypeId, liquidatorLoanName);
+      await loanManager.connect(hub).createUserLoan(nonce, liquidatorAccountId, loanTypeId, liquidatorLoanName);
 
       // deposit USDC into liquidator loan
       const liquidatorDepositAmount = BigInt(1000e6); // 10,000 USDC
@@ -4063,12 +4073,11 @@ describe("LoanManager (unit tests)", () => {
       } = await loadFixture(depositEtherAndVariableBorrowUSDCFixture);
 
       // create liquidator loan
-      const liquidatorLoanId = getRandomBytes(BYTES32_LENGTH);
       const liquidatorAccountId = getAccountIdBytes("LIQUIDATOR_ACCOUNT_ID");
+      const nonce = getRandomBytes(BYTES4_LENGTH);
+      const liquidatorLoanId = generateLoanId(liquidatorAccountId, nonce);
       const liquidatorLoanName = getRandomBytes(BYTES32_LENGTH);
-      await loanManager
-        .connect(hub)
-        .createUserLoan(liquidatorLoanId, liquidatorAccountId, loanTypeId, liquidatorLoanName);
+      await loanManager.connect(hub).createUserLoan(nonce, liquidatorAccountId, loanTypeId, liquidatorLoanName);
 
       // deposit USDC into liquidator loan
       const liquidatorDepositAmount = BigInt(1000e6); // 10,000 USDC
@@ -4269,12 +4278,11 @@ describe("LoanManager (unit tests)", () => {
       } = await loadFixture(depositEtherAndStableBorrowUSDCFixture);
 
       // create liquidator loan
-      const liquidatorLoanId = getRandomBytes(BYTES32_LENGTH);
       const liquidatorAccountId = getAccountIdBytes("LIQUIDATOR_ACCOUNT_ID");
+      const nonce = getRandomBytes(BYTES4_LENGTH);
+      const liquidatorLoanId = generateLoanId(liquidatorAccountId, nonce);
       const liquidatorLoanName = getRandomBytes(BYTES32_LENGTH);
-      await loanManager
-        .connect(hub)
-        .createUserLoan(liquidatorLoanId, liquidatorAccountId, loanTypeId, liquidatorLoanName);
+      await loanManager.connect(hub).createUserLoan(nonce, liquidatorAccountId, loanTypeId, liquidatorLoanName);
 
       // deposit USDC into liquidator loan
       const liquidatorDepositAmount = BigInt(1000e6); // 10,000 USDC
@@ -4499,12 +4507,11 @@ describe("LoanManager (unit tests)", () => {
       } = await loadFixture(depositEtherAndVariableBorrowUSDCFixture);
 
       // create liquidator loan
-      const liquidatorLoanId = getRandomBytes(BYTES32_LENGTH);
       const liquidatorAccountId = getAccountIdBytes("LIQUIDATOR_ACCOUNT_ID");
+      const nonce = getRandomBytes(BYTES4_LENGTH);
+      const liquidatorLoanId = generateLoanId(liquidatorAccountId, nonce);
       const liquidatorLoanName = getRandomBytes(BYTES32_LENGTH);
-      await loanManager
-        .connect(hub)
-        .createUserLoan(liquidatorLoanId, liquidatorAccountId, loanTypeId, liquidatorLoanName);
+      await loanManager.connect(hub).createUserLoan(nonce, liquidatorAccountId, loanTypeId, liquidatorLoanName);
 
       // deposit ETH into liquidator loan
       const liquidatorDepositAmount = BigInt(5e18); // 5 ETH
@@ -4685,12 +4692,11 @@ describe("LoanManager (unit tests)", () => {
       } = await loadFixture(depositEtherAndVariableBorrowUSDCFixture);
 
       // create liquidator loan
-      const liquidatorLoanId = getRandomBytes(BYTES32_LENGTH);
       const liquidatorAccountId = getAccountIdBytes("LIQUIDATOR_ACCOUNT_ID");
+      const nonce = getRandomBytes(BYTES4_LENGTH);
+      const liquidatorLoanId = generateLoanId(liquidatorAccountId, nonce);
       const liquidatorLoanName = getRandomBytes(BYTES32_LENGTH);
-      await loanManager
-        .connect(hub)
-        .createUserLoan(liquidatorLoanId, liquidatorAccountId, loanTypeId, liquidatorLoanName);
+      await loanManager.connect(hub).createUserLoan(nonce, liquidatorAccountId, loanTypeId, liquidatorLoanName);
 
       // deposit USDC into liquidator loan
       const liquidatorDepositAmount = BigInt(10000e6); // 10,000 USDC
@@ -4857,12 +4863,11 @@ describe("LoanManager (unit tests)", () => {
       expect(await loanManager.isUserLoanActive(violatorLoanId)).to.be.false;
 
       // create liquidator loan
-      const liquidatorLoanId = getRandomBytes(BYTES32_LENGTH);
       const liquidatorAccountId = getAccountIdBytes("LIQUIDATOR_ACCOUNT_ID");
+      const nonce = getRandomBytes(BYTES4_LENGTH);
+      const liquidatorLoanId = generateLoanId(liquidatorAccountId, nonce);
       const liquidatorLoanName = getRandomBytes(BYTES32_LENGTH);
-      await loanManager
-        .connect(hub)
-        .createUserLoan(liquidatorLoanId, liquidatorAccountId, loanTypeId, liquidatorLoanName);
+      await loanManager.connect(hub).createUserLoan(nonce, liquidatorAccountId, loanTypeId, liquidatorLoanName);
 
       // liquidate
       const repayAmount = BigInt(1);
@@ -4921,12 +4926,11 @@ describe("LoanManager (unit tests)", () => {
       } = await loadFixture(depositEtherAndVariableBorrowUSDCFixture);
 
       // create liquidator loan
-      const liquidatorLoanId = getRandomBytes(BYTES32_LENGTH);
       let liquidatorAccountId = getAccountIdBytes("LIQUIDATOR_ACCOUNT_ID");
+      const nonce = getRandomBytes(BYTES4_LENGTH);
+      const liquidatorLoanId = generateLoanId(liquidatorAccountId, nonce);
       const liquidatorLoanName = getRandomBytes(BYTES32_LENGTH);
-      await loanManager
-        .connect(hub)
-        .createUserLoan(liquidatorLoanId, liquidatorAccountId, loanTypeId, liquidatorLoanName);
+      await loanManager.connect(hub).createUserLoan(nonce, liquidatorAccountId, loanTypeId, liquidatorLoanName);
 
       // verify not owner
       liquidatorAccountId = getAccountIdBytes("NEW_ACCOUNT_ID");
@@ -4992,12 +4996,11 @@ describe("LoanManager (unit tests)", () => {
       } = await loadFixture(depositEtherAndVariableBorrowUSDCFixture);
 
       // create liquidator loan
-      const liquidatorLoanId = getRandomBytes(BYTES32_LENGTH);
       const liquidatorAccountId = getAccountIdBytes("LIQUIDATOR_ACCOUNT_ID");
+      const nonce = getRandomBytes(BYTES4_LENGTH);
+      const liquidatorLoanId = generateLoanId(liquidatorAccountId, nonce);
       const liquidatorLoanName = getRandomBytes(BYTES32_LENGTH);
-      await loanManager
-        .connect(hub)
-        .createUserLoan(liquidatorLoanId, liquidatorAccountId, loanTypeId, liquidatorLoanName);
+      await loanManager.connect(hub).createUserLoan(nonce, liquidatorAccountId, loanTypeId, liquidatorLoanName);
 
       // liquidate
       const repayAmount = BigInt(1);
@@ -5030,12 +5033,11 @@ describe("LoanManager (unit tests)", () => {
       } = await loadFixture(depositEtherAndVariableBorrowUSDCFixture);
 
       // create liquidator loan
-      const liquidatorLoanId = getRandomBytes(BYTES32_LENGTH);
       const liquidatorAccountId = getAccountIdBytes("LIQUIDATOR_ACCOUNT_ID");
+      const nonce = getRandomBytes(BYTES4_LENGTH);
+      const liquidatorLoanId = generateLoanId(liquidatorAccountId, nonce);
       const liquidatorLoanName = getRandomBytes(BYTES32_LENGTH);
-      await loanManager
-        .connect(hub)
-        .createUserLoan(liquidatorLoanId, liquidatorAccountId, loanTypeId, liquidatorLoanName);
+      await loanManager.connect(hub).createUserLoan(nonce, liquidatorAccountId, loanTypeId, liquidatorLoanName);
 
       // liquidate
       const repayAmount = BigInt(1);
@@ -5074,12 +5076,13 @@ describe("LoanManager (unit tests)", () => {
       await loanManager.connect(admin).createLoanType(liquidatorLoanTypeId, loanTargetHealth);
 
       // create liquidator loan
-      const liquidatorLoanId = getRandomBytes(BYTES32_LENGTH);
       const liquidatorAccountId = getAccountIdBytes("LIQUIDATOR_ACCOUNT_ID");
+      const nonce = getRandomBytes(BYTES4_LENGTH);
+      const liquidatorLoanId = generateLoanId(liquidatorAccountId, nonce);
       const liquidatorLoanName = getRandomBytes(BYTES32_LENGTH);
       await loanManager
         .connect(hub)
-        .createUserLoan(liquidatorLoanId, liquidatorAccountId, liquidatorLoanTypeId, liquidatorLoanName);
+        .createUserLoan(nonce, liquidatorAccountId, liquidatorLoanTypeId, liquidatorLoanName);
 
       // liquidate
       const repayAmount = BigInt(1);
@@ -5113,12 +5116,11 @@ describe("LoanManager (unit tests)", () => {
       } = await loadFixture(depositEtherAndVariableBorrowUSDCFixture);
 
       // create liquidator loan
-      const liquidatorLoanId = getRandomBytes(BYTES32_LENGTH);
       const liquidatorAccountId = getAccountIdBytes("LIQUIDATOR_ACCOUNT_ID");
+      const nonce = getRandomBytes(BYTES4_LENGTH);
+      const liquidatorLoanId = generateLoanId(liquidatorAccountId, nonce);
       const liquidatorLoanName = getRandomBytes(BYTES32_LENGTH);
-      await loanManager
-        .connect(hub)
-        .createUserLoan(liquidatorLoanId, liquidatorAccountId, loanTypeId, liquidatorLoanName);
+      await loanManager.connect(hub).createUserLoan(nonce, liquidatorAccountId, loanTypeId, liquidatorLoanName);
 
       // deposit USDC into liquidator loan
       const liquidatorDepositAmount = BigInt(1000e6); // 10,000 USDC
@@ -5182,12 +5184,11 @@ describe("LoanManager (unit tests)", () => {
       } = await loadFixture(depositEtherAndVariableBorrowUSDCFixture);
 
       // create liquidator loan
-      const liquidatorLoanId = getRandomBytes(BYTES32_LENGTH);
       const liquidatorAccountId = getAccountIdBytes("LIQUIDATOR_ACCOUNT_ID");
+      const nonce = getRandomBytes(BYTES4_LENGTH);
+      const liquidatorLoanId = generateLoanId(liquidatorAccountId, nonce);
       const liquidatorLoanName = getRandomBytes(BYTES32_LENGTH);
-      await loanManager
-        .connect(hub)
-        .createUserLoan(liquidatorLoanId, liquidatorAccountId, loanTypeId, liquidatorLoanName);
+      await loanManager.connect(hub).createUserLoan(nonce, liquidatorAccountId, loanTypeId, liquidatorLoanName);
 
       // deposit USDC into liquidator loan
       const liquidatorDepositAmount = BigInt(1000e6); // 10,000 USDC
@@ -5260,12 +5261,11 @@ describe("LoanManager (unit tests)", () => {
       } = await loadFixture(depositEtherAndVariableBorrowUSDCFixture);
 
       // create liquidator loan
-      const liquidatorLoanId = getRandomBytes(BYTES32_LENGTH);
       const liquidatorAccountId = getAccountIdBytes("LIQUIDATOR_ACCOUNT_ID");
+      const nonce = getRandomBytes(BYTES4_LENGTH);
+      const liquidatorLoanId = generateLoanId(liquidatorAccountId, nonce);
       const liquidatorLoanName = getRandomBytes(BYTES32_LENGTH);
-      await loanManager
-        .connect(hub)
-        .createUserLoan(liquidatorLoanId, liquidatorAccountId, loanTypeId, liquidatorLoanName);
+      await loanManager.connect(hub).createUserLoan(nonce, liquidatorAccountId, loanTypeId, liquidatorLoanName);
 
       // deposit USDC into liquidator loan
       const liquidatorDepositAmount = BigInt(1000e6); // 10,000 USDC
@@ -5357,12 +5357,11 @@ describe("LoanManager (unit tests)", () => {
       } = await loadFixture(depositEtherAndVariableBorrowUSDCFixture);
 
       // create liquidator loan
-      const liquidatorLoanId = getRandomBytes(BYTES32_LENGTH);
       const liquidatorAccountId = getAccountIdBytes("LIQUIDATOR_ACCOUNT_ID");
+      const nonce = getRandomBytes(BYTES4_LENGTH);
+      const liquidatorLoanId = generateLoanId(liquidatorAccountId, nonce);
       const liquidatorLoanName = getRandomBytes(BYTES32_LENGTH);
-      await loanManager
-        .connect(hub)
-        .createUserLoan(liquidatorLoanId, liquidatorAccountId, loanTypeId, liquidatorLoanName);
+      await loanManager.connect(hub).createUserLoan(nonce, liquidatorAccountId, loanTypeId, liquidatorLoanName);
 
       // Violator:
       // Collateral 1 ETH = $1,400 -> CF 70% -> $980
@@ -5455,12 +5454,11 @@ describe("LoanManager (unit tests)", () => {
       } = await loadFixture(depositEtherAndVariableBorrowUSDCFixture);
 
       // create liquidator loan
-      const liquidatorLoanId = getRandomBytes(BYTES32_LENGTH);
       const liquidatorAccountId = getAccountIdBytes("LIQUIDATOR_ACCOUNT_ID");
+      const nonce = getRandomBytes(BYTES4_LENGTH);
+      const liquidatorLoanId = generateLoanId(liquidatorAccountId, nonce);
       const liquidatorLoanName = getRandomBytes(BYTES32_LENGTH);
-      await loanManager
-        .connect(hub)
-        .createUserLoan(liquidatorLoanId, liquidatorAccountId, loanTypeId, liquidatorLoanName);
+      await loanManager.connect(hub).createUserLoan(nonce, liquidatorAccountId, loanTypeId, liquidatorLoanName);
 
       // liquidate
       const repayAmount = BigInt(1);

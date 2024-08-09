@@ -4,6 +4,7 @@ import { impersonateAccount, loadFixture, setBalance } from "@nomicfoundation/ha
 import { MockBridgeRouter__factory, SimpleAddressOracle__factory, SpokeCommon__factory } from "../../typechain-types";
 import {
   BYTES32_LENGTH,
+  BYTES4_LENGTH,
   UINT16_LENGTH,
   UINT256_LENGTH,
   UINT8_LENGTH,
@@ -99,14 +100,22 @@ describe("SpokeCommon contract (unit tests)", () => {
 
       // call create account
       const accountId: string = getAccountIdBytes("ACCOUNT_ID");
+      const nonce: string = getRandomBytes(BYTES4_LENGTH);
       const refAccountId: string = getAccountIdBytes("REFERRER");
       const feeAmount = BigInt(30000);
-      const createAccount = spokeCommon.createAccount(MESSAGE_PARAMS, accountId, refAccountId, { value: feeAmount });
+      const createAccount = spokeCommon.createAccount(MESSAGE_PARAMS, accountId, nonce, refAccountId, {
+        value: feeAmount,
+      });
 
       // expect message
       const params = Object.values(MESSAGE_PARAMS);
       const sourceAddress = convertEVMAddressToGenericAddress(spokeAddress);
-      const payload = buildMessagePayload(Action.CreateAccount, accountId, user.address, refAccountId);
+      const payload = buildMessagePayload(
+        Action.CreateAccount,
+        accountId,
+        user.address,
+        ethers.concat([nonce, refAccountId])
+      );
       await expect(createAccount)
         .to.emit(bridgeRouter, "SendMessage")
         .withArgs(params, sourceAddress, hubChainId, hubAddress, payload, Finality.IMMEDIATE, "0x");
@@ -121,8 +130,9 @@ describe("SpokeCommon contract (unit tests)", () => {
 
       // create account
       const accountId: string = getAccountIdBytes("ACCOUNT_ID");
+      const nonce: string = getRandomBytes(BYTES4_LENGTH);
       const refAccountId: string = getEmptyBytes(BYTES32_LENGTH);
-      const createAccount = spokeCommon.createAccount(MESSAGE_PARAMS, accountId, refAccountId);
+      const createAccount = spokeCommon.createAccount(MESSAGE_PARAMS, accountId, nonce, refAccountId);
       await expect(createAccount)
         .to.be.revertedWithCustomError(spokeCommon, "AddressIneligible")
         .withArgs(user.address, Action.CreateAccount);
@@ -350,11 +360,11 @@ describe("SpokeCommon contract (unit tests)", () => {
 
       // call create loan
       const accountId: string = getAccountIdBytes("ACCOUNT_ID");
-      const loanId = getRandomBytes(BYTES32_LENGTH);
+      const nonce: string = getRandomBytes(BYTES4_LENGTH);
       const loanTypeId = 2;
       const loanName = getRandomBytes(BYTES32_LENGTH);
       const feeAmount = BigInt(30000);
-      const createLoan = spokeCommon.createLoan(MESSAGE_PARAMS, accountId, loanId, loanTypeId, loanName, {
+      const createLoan = spokeCommon.createLoan(MESSAGE_PARAMS, accountId, nonce, loanTypeId, loanName, {
         value: feeAmount,
       });
 
@@ -365,7 +375,7 @@ describe("SpokeCommon contract (unit tests)", () => {
         Action.CreateLoan,
         accountId,
         user.address,
-        ethers.concat([loanId, convertNumberToBytes(loanTypeId, UINT16_LENGTH), loanName])
+        ethers.concat([nonce, convertNumberToBytes(loanTypeId, UINT16_LENGTH), loanName])
       );
       await expect(createLoan)
         .to.emit(bridgeRouter, "SendMessage")
@@ -381,10 +391,10 @@ describe("SpokeCommon contract (unit tests)", () => {
 
       // call create loan
       const accountId: string = getAccountIdBytes("ACCOUNT_ID");
-      const loanId = getRandomBytes(BYTES32_LENGTH);
+      const nonce: string = getRandomBytes(BYTES4_LENGTH);
       const loanTypeId = 2;
       const loanName = getRandomBytes(BYTES32_LENGTH);
-      const createLoan = spokeCommon.createLoan(MESSAGE_PARAMS, accountId, loanId, loanTypeId, loanName);
+      const createLoan = spokeCommon.createLoan(MESSAGE_PARAMS, accountId, nonce, loanTypeId, loanName);
       await expect(createLoan)
         .to.be.revertedWithCustomError(spokeCommon, "AddressIneligible")
         .withArgs(user.address, Action.CreateLoan);
