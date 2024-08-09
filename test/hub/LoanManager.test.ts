@@ -904,6 +904,55 @@ describe("LoanManager (unit tests)", () => {
       expect(userPoolRewards).to.deep.equal([0, 0, 0]);
     });
 
+    it("Should successfully handle zero deposit", async () => {
+      const { hub, loanManager, loanManagerAddress, loanTypeId, pools, loanId, accountId } =
+        await loadFixture(createUserLoanFixture);
+
+      // prepare deposit
+      const depositAmount = BigInt(0);
+      const depositFAmount = depositAmount;
+      const depositInterestIndex = BigInt(1e18);
+      const ethPrice = BigInt(3000e18);
+      await pools.ETH.pool.setDepositPoolParams({
+        fAmount: depositFAmount,
+        depositInterestIndex,
+        priceFeed: { price: ethPrice, decimals: pools.ETH.tokenDecimals },
+      });
+
+      // deposit into eth pool
+      const deposit = await loanManager.connect(hub).deposit(loanId, accountId, pools.ETH.poolId, depositAmount);
+
+      const { pool, poolId } = pools.ETH;
+
+      // check events
+      const latestBlockTimestamp = await getLatestBlockTimestamp();
+      await expect(deposit).to.emit(pool, "UpdatePoolWithDeposit").withArgs(depositAmount);
+      await expect(deposit).to.emit(loanManager, "RewardIndexesUpdated").withArgs(poolId, 0, 0, latestBlockTimestamp);
+      const loanManagerLogic = await ethers.getContractAt("LoanManagerLogic", loanManagerAddress);
+      await expect(deposit)
+        .to.emit(loanManagerLogic, "Deposit")
+        .withArgs(loanId, poolId, depositAmount, depositFAmount);
+
+      // check user loan
+      const userLoan = await loanManager.getUserLoan(loanId);
+      expect(await loanManager.isUserLoanActive(loanId)).to.be.true;
+      expect(userLoan[0]).to.equal(accountId);
+      expect(userLoan[1]).to.equal(loanTypeId);
+      expect(userLoan[2]).to.deep.equal([]);
+      expect(userLoan[4]).to.deep.equal([]);
+
+      // check loan pool
+      const loanPool = await loanManager.getLoanPool(loanTypeId, poolId);
+      expect(loanPool[0]).to.equal(depositFAmount);
+      expect(loanPool[10][0]).to.equal(latestBlockTimestamp);
+      expect(loanPool[10][4]).to.equal(0);
+      expect(loanPool[10][5]).to.equal(0);
+
+      // check user rewards
+      const userPoolRewards = await loanManager.getUserPoolRewards(accountId, poolId);
+      expect(userPoolRewards).to.deep.equal([0, 0, 0]);
+    });
+
     it("Should successfully increase deposit", async () => {
       const {
         hub,
@@ -1974,6 +2023,61 @@ describe("LoanManager (unit tests)", () => {
       expect(userLoan[1]).to.equal(loanTypeId);
       expect(userLoan[3]).to.deep.equal([poolId]);
       expect(userLoan[5]).to.deep.equal(borrows.map((bor) => Object.values(bor)));
+
+      // check loan pool
+      const loanPool = await loanManager.getLoanPool(loanTypeId, poolId);
+      expect(loanPool[1]).to.equal(borrowAmount);
+      expect(loanPool[10][0]).to.equal(latestBlockTimestamp);
+      expect(loanPool[10][4]).to.equal(0);
+      expect(loanPool[10][5]).to.equal(0);
+
+      // check user rewards
+      const userPoolRewards = await loanManager.getUserPoolRewards(accountId, poolId);
+      expect(userPoolRewards).to.deep.equal([0, 0, 0]);
+    });
+
+    it("Should successfully handle zero borrow", async () => {
+      const { hub, loanManager, loanManagerAddress, oracleManager, loanTypeId, pools, loanId, accountId } =
+        await loadFixture(depositEtherFixture);
+
+      // set prices
+      const usdcNodeOutputData = getNodeOutputData(BigInt(1e18));
+      await oracleManager.setNodeOutput(pools.USDC.poolId, pools.USDC.tokenDecimals, usdcNodeOutputData);
+
+      const ethNodeOutputData = getNodeOutputData(BigInt(3000e18));
+      await oracleManager.setNodeOutput(pools.ETH.poolId, pools.ETH.tokenDecimals, ethNodeOutputData);
+
+      // prepare borrow
+      const variableInterestIndex = BigInt(1.05e18);
+      const stableInterestRate = BigInt(0.1e18);
+      await pools.USDC.pool.setBorrowPoolParams({ variableInterestIndex, stableInterestRate });
+      await pools.USDC.pool.setUpdatedVariableBorrowInterestIndex(variableInterestIndex);
+
+      // borrow from USDC pool
+      const borrowAmount = BigInt(0);
+      const borrow = await loanManager
+        .connect(hub)
+        .borrow(loanId, accountId, pools.USDC.poolId, borrowAmount, BigInt(0));
+
+      const { pool, poolId } = pools.USDC;
+
+      // check events
+      const latestBlockTimestamp = await getLatestBlockTimestamp();
+      await expect(borrow).to.emit(pool, "PreparePoolForBorrow").withArgs(borrowAmount, 0);
+      await expect(borrow).to.emit(loanManager, "RewardIndexesUpdated").withArgs(poolId, 0, 0, latestBlockTimestamp);
+      await expect(borrow).to.emit(pool, "UpdatePoolWithBorrow").withArgs(borrowAmount, false);
+      const loanManagerLogic = await ethers.getContractAt("LoanManagerLogic", loanManagerAddress);
+      await expect(borrow)
+        .to.emit(loanManagerLogic, "Borrow")
+        .withArgs(loanId, poolId, borrowAmount, false, stableInterestRate);
+
+      // check user loan
+      const userLoan = await loanManager.getUserLoan(loanId);
+      expect(await loanManager.isUserLoanActive(loanId)).to.be.true;
+      expect(userLoan[0]).to.equal(accountId);
+      expect(userLoan[1]).to.equal(loanTypeId);
+      expect(userLoan[3]).to.deep.equal([]);
+      expect(userLoan[5]).to.deep.equal([]);
 
       // check loan pool
       const loanPool = await loanManager.getLoanPool(loanTypeId, poolId);

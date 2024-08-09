@@ -11,6 +11,7 @@ library UserLoanLogic {
     using MathUtils for uint256;
 
     error BorrowTypeMismatch();
+    error RepaidBorrowBalanceIsZero();
 
     /// @notice Increase the collateral of a loan
     /// @dev Init, adding the new pool to the user collateral list, or update the collateral amount
@@ -18,6 +19,9 @@ library UserLoanLogic {
     /// @param poolId The pool ID of the collateral
     /// @param fAmount The amount in f token to increase the balance by
     function increaseCollateral(LoanManagerState.UserLoan storage loan, uint8 poolId, uint256 fAmount) external {
+        // ignore increase by zero amount
+        if (fAmount == 0) return;
+
         // if the balance was prev zero, add pool to list of user loan collaterals
         if (loan.collaterals[poolId].balance == 0) loan.colPools.push(poolId);
 
@@ -60,6 +64,10 @@ library UserLoanLogic {
     ) external {
         LoanManagerState.UserLoanBorrow storage loanBorrow = loan.borrows[params.poolId];
 
+        // ignore increase by zero amount
+        if (params.amount == 0) return;
+
+        // if the balance was prev zero then initialise, else update
         if (loanBorrow.balance == 0) {
             initLoanBorrowInterests(loanBorrow, params, isStable);
             loanBorrow.amount = params.amount;
@@ -146,6 +154,10 @@ library UserLoanLogic {
         LoanManagerState.UserLoanBorrow storage loanBorrow = loan.borrows[params.poolId];
         bool isStable = violatorStableRate > 0;
 
+        // safeguard against zero amount
+        if (repaidBorrowBalance == 0) revert RepaidBorrowBalanceIsZero();
+
+        // if the balance was prev zero then initialise, else update
         if (loanBorrow.balance == 0) {
             initLoanBorrowInterests(loanBorrow, params, isStable);
             if (isStable) loanBorrow.stableInterestRate = violatorStableRate;
