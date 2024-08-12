@@ -74,6 +74,38 @@ describe("AccountManager (unit tests)", () => {
     };
   }
 
+  async function acceptInviteAddressFixture() {
+    const {
+      hub,
+      unusedUsers,
+      accountManager,
+      accountId,
+      spokeChainId,
+      userAddr,
+      inviteeChainId,
+      inviteeUserAddr,
+      refAccountId,
+    } = await loadFixture(inviteAddressFixture);
+
+    // accept invite
+    const acceptInvite = await accountManager
+      .connect(hub)
+      .acceptInviteAddress(accountId, inviteeChainId, inviteeUserAddr);
+
+    return {
+      hub,
+      unusedUsers,
+      accountManager,
+      acceptInvite,
+      accountId,
+      spokeChainId,
+      userAddr,
+      inviteeChainId,
+      inviteeUserAddr,
+      refAccountId,
+    };
+  }
+
   async function addDelegateFixture() {
     const { hub, unusedUsers, accountManager, accountId, spokeChainId, userAddr } =
       await loadFixture(createAccountFixture);
@@ -140,6 +172,7 @@ describe("AccountManager (unit tests)", () => {
       expect(await accountManager.isAddressRegistered(spokeChainId, userAddr)).to.be.true;
       expect(await accountManager.isAddressInvitedToAccount(accountId, spokeChainId, userAddr)).to.be.false;
       expect(await accountManager.isAddressRegisteredToAccount(accountId, spokeChainId, userAddr)).to.be.true;
+      expect(await accountManager.getNumAddressesRegisteredToAccount(accountId)).to.be.equal(1);
       expect(await accountManager.getAccountIdOfAddressOnChain(userAddr, spokeChainId)).to.be.equal(accountId);
       await expect(accountManager.getAddressInvitedToAccountOnChain(accountId, spokeChainId)).to.be.reverted;
       expect(await accountManager.getAddressRegisteredToAccountOnChain(accountId, spokeChainId)).to.be.equal(userAddr);
@@ -173,9 +206,10 @@ describe("AccountManager (unit tests)", () => {
       expect(await accountManager.isAddressRegistered(spokeChainId, userAddr)).to.be.true;
       expect(await accountManager.isAddressInvitedToAccount(accountId, spokeChainId, userAddr)).to.be.false;
       expect(await accountManager.isAddressRegisteredToAccount(accountId, spokeChainId, userAddr)).to.be.true;
+      expect(await accountManager.getAddressRegisteredToAccountOnChain(accountId, spokeChainId)).to.be.equal(userAddr);
       expect(await accountManager.getAccountIdOfAddressOnChain(userAddr, spokeChainId)).to.be.equal(accountId);
       await expect(accountManager.getAddressInvitedToAccountOnChain(accountId, spokeChainId)).to.be.reverted;
-      expect(await accountManager.getAddressRegisteredToAccountOnChain(accountId, spokeChainId)).to.be.equal(userAddr);
+      expect(await accountManager.getNumAddressesRegisteredToAccount(accountId)).to.be.equal(1);
     });
 
     it("Should fail to create account when account id is empty", async () => {
@@ -275,6 +309,7 @@ describe("AccountManager (unit tests)", () => {
       expect(await accountManager.isAddressRegistered(inviteeChainId, inviteeUserAddr)).to.be.false;
       expect(await accountManager.isAddressInvitedToAccount(accountId, inviteeChainId, inviteeUserAddr)).to.be.true;
       expect(await accountManager.isAddressRegisteredToAccount(accountId, inviteeChainId, inviteeUserAddr)).to.be.false;
+      expect(await accountManager.getNumAddressesRegisteredToAccount(accountId)).to.be.equal(1);
       await expect(accountManager.getAccountIdOfAddressOnChain(inviteeUserAddr, inviteeChainId)).to.be.reverted;
       expect(await accountManager.getAddressInvitedToAccountOnChain(accountId, inviteeChainId)).to.be.equal(
         inviteeUserAddr
@@ -312,6 +347,7 @@ describe("AccountManager (unit tests)", () => {
       expect(await accountManager.isAddressRegistered(inviteeChainId, inviteeUserAddr)).to.be.false;
       expect(await accountManager.isAddressInvitedToAccount(accountId, inviteeChainId, inviteeUserAddr)).to.be.true;
       expect(await accountManager.isAddressRegisteredToAccount(accountId, inviteeChainId, inviteeUserAddr)).to.be.false;
+      expect(await accountManager.getNumAddressesRegisteredToAccount(accountId)).to.be.equal(1);
       await expect(accountManager.getAccountIdOfAddressOnChain(inviteeUserAddr, inviteeChainId)).to.be.reverted;
       expect(await accountManager.getAddressInvitedToAccountOnChain(accountId, inviteeChainId)).to.be.equal(
         inviteeUserAddr
@@ -345,6 +381,7 @@ describe("AccountManager (unit tests)", () => {
       expect(await accountManager.isAddressRegisteredToAccount(accountId, inviteeChainId, inviteeUserAddr)).to.be.false;
       expect(await accountManager.isAddressRegisteredToAccount(accountId, inviteeChainId, newInviteeUserAddr)).to.be
         .false;
+      expect(await accountManager.getNumAddressesRegisteredToAccount(accountId)).to.be.equal(1);
       await expect(accountManager.getAccountIdOfAddressOnChain(inviteeUserAddr, inviteeChainId)).to.be.reverted;
       await expect(accountManager.getAccountIdOfAddressOnChain(newInviteeUserAddr, inviteeChainId)).to.be.reverted;
       expect(await accountManager.getAddressInvitedToAccountOnChain(accountId, inviteeChainId)).to.be.equal(
@@ -457,11 +494,8 @@ describe("AccountManager (unit tests)", () => {
     });
 
     it("Should successfuly accept invite", async () => {
-      const { hub, accountManager, accountId, inviteeChainId, inviteeUserAddr } =
-        await loadFixture(inviteAddressFixture);
-
-      // accept invite
-      const acceptInvite = accountManager.connect(hub).acceptInviteAddress(accountId, inviteeChainId, inviteeUserAddr);
+      const { accountManager, acceptInvite, accountId, inviteeChainId, inviteeUserAddr } =
+        await loadFixture(acceptInviteAddressFixture);
 
       // verify accept
       await expect(acceptInvite)
@@ -470,6 +504,7 @@ describe("AccountManager (unit tests)", () => {
       expect(await accountManager.isAddressRegistered(inviteeChainId, inviteeUserAddr)).to.be.true;
       expect(await accountManager.isAddressInvitedToAccount(accountId, inviteeChainId, inviteeUserAddr)).to.be.false;
       expect(await accountManager.isAddressRegisteredToAccount(accountId, inviteeChainId, inviteeUserAddr)).to.be.true;
+      expect(await accountManager.getNumAddressesRegisteredToAccount(accountId)).to.be.equal(2);
       expect(await accountManager.getAccountIdOfAddressOnChain(inviteeUserAddr, inviteeChainId)).to.be.equal(accountId);
       await expect(accountManager.getAddressInvitedToAccountOnChain(accountId, inviteeChainId)).to.be.reverted;
       expect(await accountManager.getAddressRegisteredToAccountOnChain(accountId, inviteeChainId)).to.be.equal(
@@ -477,7 +512,7 @@ describe("AccountManager (unit tests)", () => {
       );
     });
 
-    it("Should fail to invite address when unknown account", async () => {
+    it("Should fail to accept invite address when unknown account", async () => {
       const { hub, accountManager, inviteeChainId, inviteeUserAddr } = await loadFixture(inviteAddressFixture);
 
       // verify new account
@@ -535,7 +570,17 @@ describe("AccountManager (unit tests)", () => {
     });
 
     it("Should successfuly de-register registered addresss", async () => {
-      const { hub, userAddr, accountManager, accountId, spokeChainId } = await loadFixture(createAccountFixture);
+      const {
+        hub,
+        accountManager,
+        accountId,
+        inviteeChainId: spokeChainId,
+        inviteeUserAddr: userAddr,
+      } = await loadFixture(acceptInviteAddressFixture);
+
+      // verify more than one addresss registered
+      const numAddresses = await accountManager.getNumAddressesRegisteredToAccount(accountId);
+      expect(numAddresses).to.be.greaterThan(1);
 
       // unregister address
       const unregisterAddress = accountManager.connect(hub).unregisterAddress(accountId, spokeChainId);
@@ -548,6 +593,7 @@ describe("AccountManager (unit tests)", () => {
       expect(await accountManager.isAddressRegistered(spokeChainId, userAddr)).to.be.false;
       expect(await accountManager.isAddressInvitedToAccount(accountId, spokeChainId, userAddr)).to.be.false;
       expect(await accountManager.isAddressRegisteredToAccount(accountId, spokeChainId, userAddr)).to.be.false;
+      expect(await accountManager.getNumAddressesRegisteredToAccount(accountId)).to.be.equal(numAddresses - BigInt(1));
       await expect(accountManager.getAccountIdOfAddressOnChain(userAddr, spokeChainId)).to.be.reverted;
       await expect(accountManager.getAddressInvitedToAccountOnChain(accountId, spokeChainId)).to.be.reverted;
       await expect(accountManager.getAddressRegisteredToAccountOnChain(accountId, spokeChainId)).to.be.reverted;
@@ -573,6 +619,19 @@ describe("AccountManager (unit tests)", () => {
       await expect(accountManager.getAccountIdOfAddressOnChain(inviteeUserAddr, inviteeChainId)).to.be.reverted;
       await expect(accountManager.getAddressInvitedToAccountOnChain(accountId, inviteeChainId)).to.be.reverted;
       await expect(accountManager.getAddressRegisteredToAccountOnChain(accountId, inviteeChainId)).to.be.reverted;
+    });
+
+    it("Should fail to unregister when no registered addresses would be left", async () => {
+      const { hub, accountManager, accountId, spokeChainId } = await loadFixture(createAccountFixture);
+
+      // verify only one addresss registered
+      expect(await accountManager.getNumAddressesRegisteredToAccount(accountId)).to.be.equal(1);
+
+      // unregister address
+      const unregisterAddress = accountManager.connect(hub).unregisterAddress(accountId, spokeChainId);
+      await expect(unregisterAddress)
+        .to.be.revertedWithCustomError(accountManager, "CannotDeleteAccount")
+        .withArgs(accountId);
     });
 
     it("Should fail to unregister address when unknown account", async () => {
@@ -724,7 +783,7 @@ describe("AccountManager (unit tests)", () => {
       // get address
       const getAddress = accountManager.connect(hub).getAddressRegisteredToAccountOnChain(accountId, unknownChainId);
       await expect(getAddress)
-        .to.be.revertedWithCustomError(accountManager, "NoAddressRegisterd")
+        .to.be.revertedWithCustomError(accountManager, "NoAddressRegistered")
         .withArgs(accountId, unknownChainId);
     });
   });

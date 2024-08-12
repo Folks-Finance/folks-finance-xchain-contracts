@@ -23,7 +23,7 @@ contract HubAdapter is IBridgeAdapter {
     }
 
     /**
-     * @notice Contructor
+     * @notice Constructor
      * @param bridgeRouterSpoke_ The Bridge Router Spoke to route messages through
      * @param bridgeRouterHub_ The Bridge Router Hub to route messages through
      * @param hubChainId_ The hub chain id

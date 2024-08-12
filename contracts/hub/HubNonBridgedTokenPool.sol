@@ -6,7 +6,7 @@ import "./HubPool.sol";
 
 contract HubNonBridgedTokenPool is HubPool {
     /**
-     * @notice Contructor
+     * @notice Constructor
      * @param admin The default admin for HubNonBridgedTokenPool
      */
     constructor(

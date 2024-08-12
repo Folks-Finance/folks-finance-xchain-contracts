@@ -7,8 +7,8 @@ import "./interfaces/IAccountManager.sol";
 contract AccountManager is IAccountManager, AccessControlDefaultAdminRules {
     bytes32 public constant override HUB_ROLE = keccak256("HUB");
 
-    /// @notice Mapping of accounts to whether they are created
-    mapping(bytes32 accountId => bool isCreated) internal accounts;
+    /// @notice Mapping of accounts to the number of addresses registered to them
+    mapping(bytes32 accountId => uint16 numAddresses) internal accounts;
 
     /// @notice Mapping of account to addresses on spoke chains which will/are/have been able to manage the account
     mapping(bytes32 accountId => mapping(uint16 chainId => AccountAddress)) internal accountAddresses;
@@ -20,8 +20,8 @@ contract AccountManager is IAccountManager, AccessControlDefaultAdminRules {
     mapping(bytes32 accountId => mapping(address => bool isDelegated)) internal accountDelegatedAddresses;
 
     /**
-     * @notice Contructor
-     * @param admin The default admin for AcccountManager
+     * @notice Constructor
+     * @param admin The default admin for AccountManager
      */
     constructor(address admin) AccessControlDefaultAdminRules(1 days, admin) {}
 
@@ -49,7 +49,7 @@ contract AccountManager is IAccountManager, AccessControlDefaultAdminRules {
             revert InvalidReferrerAccount(refAccountId);
 
         // create account
-        accounts[accountId] = true;
+        accounts[accountId] = 1;
         accountAddresses[accountId][chainId] = AccountAddress({ addr: addr, invited: false, registered: true });
         registeredAddresses[addr][chainId] = accountId;
 
@@ -82,7 +82,7 @@ contract AccountManager is IAccountManager, AccessControlDefaultAdminRules {
         if (!(isAccountCreated(refAccountId) || refAccountId == bytes32(0)) || accountId == refAccountId)
             revert InvalidReferrerAccount(refAccountId);
 
-        // invite address (possibly overidding existing invite)
+        // invite address (possibly overriding existing invite)
         accountAddresses[accountId][inviteeChainId] = AccountAddress({
             addr: inviteeAddr,
             invited: true,
@@ -107,6 +107,7 @@ contract AccountManager is IAccountManager, AccessControlDefaultAdminRules {
         if (!isAddressInvitedToAccount(accountId, chainId, addr)) revert NotInvitedToAccount(accountId, chainId, addr);
 
         // accept and register
+        accounts[accountId] += 1;
         AccountAddress storage accountAddress = accountAddresses[accountId][chainId];
         accountAddress.invited = false;
         accountAddress.registered = true;
@@ -131,7 +132,13 @@ contract AccountManager is IAccountManager, AccessControlDefaultAdminRules {
         bytes32 unregisterAddr = accountAddress.addr;
 
         // remove address
-        if (accountAddress.registered) delete registeredAddresses[unregisterAddr][unregisterChainId];
+        if (accountAddress.registered) {
+            accounts[accountId] -= 1;
+            delete registeredAddresses[unregisterAddr][unregisterChainId];
+
+            // ensure you have at least one address registered
+            if (!isAccountCreated(accountId)) revert CannotDeleteAccount(accountId);
+        }
         accountAddress.invited = false;
         accountAddress.registered = false;
 
@@ -171,6 +178,14 @@ contract AccountManager is IAccountManager, AccessControlDefaultAdminRules {
     }
 
     /**
+     * @notice Get number of addresses registered to an account
+     * @param accountId The account id
+     */
+    function getNumAddressesRegisteredToAccount(bytes32 accountId) external view override returns (uint16) {
+        return accounts[accountId];
+    }
+
+    /**
      * @notice Get account id of registered address on chain
      * @param addr The address to get the account id of
      * @param chainId The chain id
@@ -191,7 +206,7 @@ contract AccountManager is IAccountManager, AccessControlDefaultAdminRules {
     ) external view override returns (bytes32) {
         if (!isAccountCreated(accountId)) revert UnknownAccount(accountId);
         AccountAddress memory accountAddress = accountAddresses[accountId][chainId];
-        if (!accountAddress.registered) revert NoAddressRegisterd(accountId, chainId);
+        if (!accountAddress.registered) revert NoAddressRegistered(accountId, chainId);
         return accountAddress.addr;
     }
 
@@ -215,7 +230,7 @@ contract AccountManager is IAccountManager, AccessControlDefaultAdminRules {
      * @param accountId The account id
      */
     function isAccountCreated(bytes32 accountId) public view override returns (bool) {
-        return accounts[accountId];
+        return accounts[accountId] > 0;
     }
 
     /**

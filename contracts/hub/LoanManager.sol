@@ -22,7 +22,7 @@ contract LoanManager is ReentrancyGuard, ILoanManager, LoanManagerState {
     bytes32 public constant override HUB_ROLE = keccak256("HUB");
 
     /**
-     * @notice Contructor
+     * @notice Constructor
      * @param admin The default admin for LoanManager
      * @param oracleManager The Oracle Manager to get prices
      */

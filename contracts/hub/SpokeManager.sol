@@ -10,7 +10,7 @@ contract SpokeManager is ISpokeManager, AccessControlDefaultAdminRules {
     mapping(uint16 chainId => mapping(bytes32 addr => bool isActive)) internal spokes;
 
     /**
-     * @notice Contructor
+     * @notice Constructor
      * @param admin The default admin for SpokeManager
      */
     constructor(address admin) AccessControlDefaultAdminRules(1 days, admin) {
