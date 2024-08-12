@@ -124,7 +124,7 @@ library LiquidationLogic {
         LoanManagerState.UserLoanBorrow storage liquidatorLoanBorrow = liquidatorLoan.borrows[borrPoolId];
         bool isViolatorStableBorrow = violatorLoanBorrow.stableInterestRate > 0;
         bool isLiquidatorStableBorrow = liquidatorLoanBorrow.stableInterestRate > 0;
-        if (liquidatorLoanBorrow.amount > 0 && isViolatorStableBorrow != isLiquidatorStableBorrow)
+        if (liquidatorLoanBorrow.balance > 0 && isViolatorStableBorrow != isLiquidatorStableBorrow)
             revert BorrowTypeMismatch(loansParams.violatorLoanId, loansParams.liquidatorLoanId, borrPoolId);
 
         // check loan is under-collateralized
