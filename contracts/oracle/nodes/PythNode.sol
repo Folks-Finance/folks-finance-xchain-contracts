@@ -33,7 +33,7 @@ library PythNode {
         int256 factor = PRECISION + pythData.expo;
         uint256 price = factor > 0
             ? pythData.price.toUint256() * (10 ** factor.toUint256())
-            : pythData.price.toUint256() / (10 ** factor.toUint256());
+            : pythData.price.toUint256() / (10 ** (-factor).toUint256());
 
         return NodeOutput.Data(price, pythData.publishTime, NodeDefinition.NodeType.PYTH, 0, 0);
     }
