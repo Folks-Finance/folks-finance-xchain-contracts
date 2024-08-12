@@ -261,7 +261,7 @@ contract WormholeCCTPAdapter is IBridgeAdapter, IWormholeReceiver, AccessControl
 
         // return info so can pair Circle Token transfer with Wormhole message
         MessageKey[] memory messageKeys = new MessageKey[](1);
-        messageKeys[0] = MessageKey(CCTPMessageLib.CCTP_KEY_TYPE, abi.encodePacked(destinationDomain, nonce));
+        messageKeys[0] = MessageKey(CCTPMessageLib.CCTP_KEY_TYPE, abi.encodePacked(cctpSourceDomainId, nonce));
         return (messageKeys, nonce);
     }
 

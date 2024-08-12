@@ -391,7 +391,7 @@ describe("WormholeCCTPAdapter (unit tests)", () => {
             [
               convertNumberToBytes(2, UINT8_LENGTH),
               ethers.concat([
-                convertNumberToBytes(cctpDomainId, UINT32_LENGTH),
+                convertNumberToBytes(cctpSourceDomainId, UINT32_LENGTH),
                 convertNumberToBytes(nonce, UINT64_LENGTH),
               ]),
             ],
