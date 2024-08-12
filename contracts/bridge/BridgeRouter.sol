@@ -29,6 +29,7 @@ abstract contract BridgeRouter is IBridgeRouter, AccessControlDefaultAdminRules 
     error FailedToWithdrawFunds(address recipient, uint256 amount);
     error ChainUnavailable(uint16 folksChainId);
     error SenderDoesNotMatch(address messager, address caller);
+    error ZeroAddressAdapter();
     error AdapterInitialized(uint16 adapterId);
     error AdapterNotInitialized(uint16 adapterId);
     error AdapterUnknown(IBridgeAdapter adapter);
@@ -47,7 +48,8 @@ abstract contract BridgeRouter is IBridgeRouter, AccessControlDefaultAdminRules 
     }
 
     function addAdapter(uint16 adapterId, IBridgeAdapter adapter) external onlyRole(MANAGER_ROLE) {
-        // check if no existing adapter
+        // check passed adapter is defined and no existing adapter
+        if (address(adapter) == address(0x0)) revert ZeroAddressAdapter();
         if (isAdapterInitialized(adapterId)) revert AdapterInitialized(adapterId);
 
         // add adapter

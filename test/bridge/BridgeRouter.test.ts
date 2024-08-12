@@ -187,6 +187,15 @@ describe("BridgeRouter (unit tests)", () => {
         .withArgs(sender.address, MANAGER_ROLE);
     });
 
+    it("Should fail to add adapter when zero address", async () => {
+      const { bridgeRouter } = await loadFixture(deployBridgeRouterFixture);
+
+      const adapterId = 0;
+      const adapterAddress = ethers.ZeroAddress;
+      const addAdapter = bridgeRouter.addAdapter(adapterId, adapterAddress);
+      expect(addAdapter).to.be.revertedWithCustomError(bridgeRouter, "ZeroAddressAdapter");
+    });
+
     it("Should fail to add adapter when already added", async () => {
       const { bridgeRouter, adapterId } = await loadFixture(addAdapterFixture);
 
