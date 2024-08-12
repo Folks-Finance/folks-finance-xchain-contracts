@@ -3802,7 +3802,6 @@ describe("LoanManager (unit tests)", () => {
       const nonce = getRandomBytes(BYTES4_LENGTH);
       const liquidatorLoanId = generateLoanId(liquidatorAccountId, nonce);
       const liquidatorLoanName = getRandomBytes(BYTES32_LENGTH);
-
       await loanManager.connect(hub).createUserLoan(nonce, liquidatorAccountId, loanTypeId, liquidatorLoanName);
 
       // deposit USDC into liquidator loan
@@ -3861,6 +3860,10 @@ describe("LoanManager (unit tests)", () => {
         pools.ETH.liquidationFee
       );
       const liquidatorCollateralFAmount = seizeCollateralFAmount - reserveCollateralFAmount;
+
+      // before
+      const loanPoolBefore = await loanManager.getLoanPool(loanTypeId, pools.ETH.poolId);
+      const oldLoanPoolCollateral = loanPoolBefore[0];
 
       // liquidate
       const minSeizedAmount = BigInt(0);
@@ -3955,6 +3958,10 @@ describe("LoanManager (unit tests)", () => {
       expect(liquidatorLoan[3]).to.deep.equal([pools.USDC.poolId]);
       expect(liquidatorLoan[4]).to.deep.equal(liquidatorCollaterals.map((col) => Object.values(col)));
       expect(liquidatorLoan[5]).to.deep.equal(liquidatorBorrows.map((bor) => Object.values(bor)));
+
+      // check loan pool
+      const loanPool = await loanManager.getLoanPool(loanTypeId, pools.ETH.poolId);
+      expect(loanPool[0]).to.equal(oldLoanPoolCollateral - reserveCollateralFAmount);
 
       // check user rewards - no interest rewards paid out
       const colViolatorPoolRewards = await loanManager.getUserPoolRewards(violatorAccountId, pools.ETH.poolId);
@@ -4056,6 +4063,10 @@ describe("LoanManager (unit tests)", () => {
       );
       const liquidatorCollateralFAmount = seizeCollateralFAmount - reserveCollateralFAmount;
 
+      // before
+      const loanPoolBefore = await loanManager.getLoanPool(loanTypeId, pools.ETH.poolId);
+      const oldLoanPoolCollateral = loanPoolBefore[0];
+
       // liquidate
       const minSeizedAmount = BigInt(0);
       const liquidate = await loanManager
@@ -4149,6 +4160,10 @@ describe("LoanManager (unit tests)", () => {
       expect(liquidatorLoan[3]).to.deep.equal([pools.USDC.poolId]);
       expect(liquidatorLoan[4]).to.deep.equal(liquidatorCollaterals.map((col) => Object.values(col)));
       expect(liquidatorLoan[5]).to.deep.equal(liquidatorBorrows.map((bor) => Object.values(bor)));
+
+      // check loan pool
+      const loanPool = await loanManager.getLoanPool(loanTypeId, pools.ETH.poolId);
+      expect(loanPool[0]).to.equal(oldLoanPoolCollateral - reserveCollateralFAmount);
 
       // check user rewards - no interest rewards paid out
       const colViolatorPoolRewards = await loanManager.getUserPoolRewards(violatorAccountId, pools.ETH.poolId);
@@ -4260,6 +4275,10 @@ describe("LoanManager (unit tests)", () => {
       );
       const liquidatorCollateralFAmount = seizeCollateralFAmount - reserveCollateralFAmount;
 
+      // before
+      const loanPoolBefore = await loanManager.getLoanPool(loanTypeId, pools.ETH.poolId);
+      const oldLoanPoolCollateral = loanPoolBefore[0];
+
       // liquidate
       const minSeizedAmount = BigInt(0);
       const liquidate = await loanManager
@@ -4353,6 +4372,10 @@ describe("LoanManager (unit tests)", () => {
       expect(liquidatorLoan[3]).to.deep.equal([pools.USDC.poolId]);
       expect(liquidatorLoan[4]).to.deep.equal(liquidatorCollaterals.map((col) => Object.values(col)));
       expect(liquidatorLoan[5]).to.deep.equal(liquidatorBorrows.map((bor) => Object.values(bor)));
+
+      // check loan pool
+      const loanPool = await loanManager.getLoanPool(loanTypeId, pools.ETH.poolId);
+      expect(loanPool[0]).to.equal(oldLoanPoolCollateral - reserveCollateralFAmount);
 
       // check user rewards - no interest rewards paid out
       const colViolatorPoolRewards = await loanManager.getUserPoolRewards(violatorAccountId, pools.ETH.poolId);
@@ -4485,6 +4508,10 @@ describe("LoanManager (unit tests)", () => {
       );
       const liquidatorCollateralFAmount = seizeCollateralFAmount - reserveCollateralFAmount;
 
+      // before
+      const loanPoolBefore = await loanManager.getLoanPool(loanTypeId, pools.ETH.poolId);
+      const oldLoanPoolCollateral = loanPoolBefore[0];
+
       // liquidate
       const minSeizedAmount = BigInt(0);
       const liquidate = await loanManager
@@ -4584,6 +4611,10 @@ describe("LoanManager (unit tests)", () => {
       expect(liquidatorLoan[4]).to.deep.equal(liquidatorCollaterals.map((col) => Object.values(col)));
       expect(liquidatorLoan[5]).to.deep.equal(liquidatorBorrows.map((bor) => Object.values(bor)));
 
+      // check loan pool
+      const loanPool = await loanManager.getLoanPool(loanTypeId, pools.ETH.poolId);
+      expect(loanPool[0]).to.equal(oldLoanPoolCollateral - reserveCollateralFAmount);
+
       // check user rewards - no interest rewards paid out
       const colViolatorPoolRewards = await loanManager.getUserPoolRewards(violatorAccountId, pools.ETH.poolId);
       const borViolatorPoolRewards = await loanManager.getUserPoolRewards(violatorAccountId, pools.USDC.poolId);
@@ -4676,6 +4707,10 @@ describe("LoanManager (unit tests)", () => {
       );
       const liquidatorCollateralFAmount = seizeCollateralFAmount - reserveCollateralFAmount;
 
+      // before
+      const loanPoolBefore = await loanManager.getLoanPool(loanTypeId, pools.ETH.poolId);
+      const oldLoanPoolCollateral = loanPoolBefore[0];
+
       // liquidate
       const minSeizedAmount = BigInt(0);
       const liquidate = await loanManager
@@ -4765,6 +4800,10 @@ describe("LoanManager (unit tests)", () => {
       expect(liquidatorLoan[3]).to.deep.equal([pools.USDC.poolId]);
       expect(liquidatorLoan[4]).to.deep.equal(liquidatorCollaterals.map((col) => Object.values(col)));
       expect(liquidatorLoan[5]).to.deep.equal(liquidatorBorrows.map((bor) => Object.values(bor)));
+
+      // check loan pool
+      const loanPool = await loanManager.getLoanPool(loanTypeId, pools.ETH.poolId);
+      expect(loanPool[0]).to.equal(oldLoanPoolCollateral - reserveCollateralFAmount);
 
       // check user rewards - no interest rewards paid out
       const colViolatorPoolRewards = await loanManager.getUserPoolRewards(violatorAccountId, pools.ETH.poolId);
@@ -4860,6 +4899,10 @@ describe("LoanManager (unit tests)", () => {
       const liquidatorCollateralFAmount = seizeCollateralFAmount - reserveCollateralFAmount;
       const attemptedRepayAmount = repayAmount + BigInt(10e6);
 
+      // before
+      const loanPoolBefore = await loanManager.getLoanPool(loanTypeId, pools.ETH.poolId);
+      const oldLoanPoolCollateral = loanPoolBefore[0];
+
       // liquidate
       const minSeizedAmount = BigInt(0);
       const liquidate = await loanManager
@@ -4947,6 +4990,10 @@ describe("LoanManager (unit tests)", () => {
       expect(liquidatorLoan[3]).to.deep.equal([pools.USDC.poolId]);
       expect(liquidatorLoan[4]).to.deep.equal(liquidatorCollaterals.map((col) => Object.values(col)));
       expect(liquidatorLoan[5]).to.deep.equal(liquidatorBorrows.map((bor) => Object.values(bor)));
+
+      // check loan pool
+      const loanPool = await loanManager.getLoanPool(loanTypeId, pools.ETH.poolId);
+      expect(loanPool[0]).to.equal(oldLoanPoolCollateral - reserveCollateralFAmount);
 
       // check user rewards - no interest rewards paid out
       const colViolatorPoolRewards = await loanManager.getUserPoolRewards(violatorAccountId, pools.ETH.poolId);
