@@ -3,6 +3,7 @@ pragma solidity 0.8.23;
 
 import "@openzeppelin/contracts/access/extensions/AccessControlDefaultAdminRules.sol";
 import "@wormhole-solidity-sdk/interfaces/IERC20.sol";
+import "@wormhole-solidity-sdk/interfaces/IWormhole.sol";
 import "@wormhole-solidity-sdk/interfaces/IWormholeReceiver.sol";
 import "@wormhole-solidity-sdk/interfaces/IWormholeRelayer.sol";
 import "@wormhole-solidity-sdk/interfaces/CCTPInterfaces/ITokenMessenger.sol";
@@ -37,6 +38,7 @@ contract WormholeCCTPAdapter is IBridgeAdapter, IWormholeReceiver, AccessControl
     mapping(uint16 folksChainId => WormholeCCTPAdapterParams) internal folksChainIdToWormholeAdapter;
     mapping(uint16 wormholeChainId => uint16 folksChainId) internal wormholeChainIdToFolksChainId;
 
+    IWormhole public immutable wormhole;
     IWormholeRelayer public immutable wormholeRelayer;
     IBridgeRouter public immutable bridgeRouter;
     ITokenMessenger public immutable circleTokenMessenger;
@@ -58,6 +60,7 @@ contract WormholeCCTPAdapter is IBridgeAdapter, IWormholeReceiver, AccessControl
     /**
      * @notice Contructor
      * @param admin The default admin for AcccountManager
+     * @param _wormhole The Wormhole Core to get message fees
      * @param _wormholeRelayer The Wormhole Relayer to relay messages using
      * @param _bridgeRouter The Bridge Router to route messages through
      * @param _circleMessageTransmitter Circle message passing used when receiving Circle Token
@@ -68,6 +71,7 @@ contract WormholeCCTPAdapter is IBridgeAdapter, IWormholeReceiver, AccessControl
      */
     constructor(
         address admin,
+        IWormhole _wormhole,
         IWormholeRelayer _wormholeRelayer,
         IBridgeRouter _bridgeRouter,
         IMessageTransmitter _circleMessageTransmitter,
@@ -76,6 +80,7 @@ contract WormholeCCTPAdapter is IBridgeAdapter, IWormholeReceiver, AccessControl
         address _circleToken,
         uint32 _cctpSourceDomainId
     ) AccessControlDefaultAdminRules(1 days, admin) {
+        wormhole = _wormhole;
         wormholeRelayer = _wormholeRelayer;
         bridgeRouter = _bridgeRouter;
         circleMessageTransmitter = _circleMessageTransmitter;
@@ -90,12 +95,16 @@ contract WormholeCCTPAdapter is IBridgeAdapter, IWormholeReceiver, AccessControl
         // get chain adapter if available
         (uint16 wormholeChainId, , ) = getChainAdapter(message.destinationChainId);
 
-        // get cost of message to be sent
-        (fee, ) = wormholeRelayer.quoteEVMDeliveryPrice(
+        // get cost of message delivery
+        uint256 deliveryCost;
+        (deliveryCost, ) = wormholeRelayer.quoteEVMDeliveryPrice(
             wormholeChainId,
             message.params.receiverValue,
             message.params.gasLimit
         );
+
+        // add cost of publishing message
+        fee = deliveryCost + wormhole.messageFee();
     }
 
     function sendMessage(Messages.MessageToSend calldata message) external payable onlyBridgeRouter {

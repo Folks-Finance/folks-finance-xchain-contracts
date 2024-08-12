@@ -2,6 +2,7 @@
 pragma solidity 0.8.23;
 
 import "@openzeppelin/contracts/access/extensions/AccessControlDefaultAdminRules.sol";
+import "@wormhole-solidity-sdk/interfaces/IWormhole.sol";
 import "@wormhole-solidity-sdk/interfaces/IWormholeReceiver.sol";
 import "@wormhole-solidity-sdk/interfaces/IWormholeRelayer.sol";
 
@@ -25,9 +26,11 @@ contract WormholeDataAdapter is IBridgeAdapter, IWormholeReceiver, AccessControl
 
     mapping(uint16 folksChainId => WormholeAdapterParams) internal folksChainIdToWormholeAdapter;
     mapping(uint16 wormholeChainId => uint16 folksChainId) internal wormholeChainIdToFolksChainId;
-    address public refundAddress;
+
+    IWormhole public immutable wormhole;
     IWormholeRelayer public immutable wormholeRelayer;
     IBridgeRouter public immutable bridgeRouter;
+    address public refundAddress;
 
     modifier onlyBridgeRouter() {
         if (msg.sender != address(bridgeRouter)) revert InvalidBridgeRouter(msg.sender);
@@ -42,16 +45,19 @@ contract WormholeDataAdapter is IBridgeAdapter, IWormholeReceiver, AccessControl
     /**
      * @notice Contructor
      * @param admin The default admin for AcccountManager
+     * @param _wormhole The Wormhole Core to get message fees
      * @param _wormholeRelayer The Wormhole Relayer to relay messages using
      * @param _bridgeRouter The Bridge Router to route messages through
      * @param _refundAddress The address to deliver any refund to
      */
     constructor(
         address admin,
+        IWormhole _wormhole,
         IWormholeRelayer _wormholeRelayer,
         IBridgeRouter _bridgeRouter,
         address _refundAddress
     ) AccessControlDefaultAdminRules(1 days, admin) {
+        wormhole = _wormhole;
         wormholeRelayer = _wormholeRelayer;
         bridgeRouter = _bridgeRouter;
         refundAddress = _refundAddress;
@@ -62,12 +68,16 @@ contract WormholeDataAdapter is IBridgeAdapter, IWormholeReceiver, AccessControl
         // get chain adapter if available
         (uint16 wormholeChainId, ) = getChainAdapter(message.destinationChainId);
 
-        // get cost of message to be sent
-        (fee, ) = wormholeRelayer.quoteEVMDeliveryPrice(
+        // get cost of message delivery
+        uint256 deliveryCost;
+        (deliveryCost, ) = wormholeRelayer.quoteEVMDeliveryPrice(
             wormholeChainId,
             message.params.receiverValue,
             message.params.gasLimit
         );
+
+        // add cost of publishing message
+        fee = deliveryCost + wormhole.messageFee();
     }
 
     function sendMessage(Messages.MessageToSend memory message) external payable override onlyBridgeRouter {

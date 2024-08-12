@@ -4,6 +4,7 @@ import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs";
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import {
   BridgeRouterSender__factory,
+  MockWormhole__factory,
   MockWormholeRelayer__factory,
   WormholeDataAdapter__factory,
 } from "../../typechain-types";
@@ -54,17 +55,24 @@ describe("WormholeDataAdapter (unit tests)", () => {
     const [user, admin, ...unusedUsers] = await ethers.getSigners();
 
     // deploy adapter
+    const wormhole = await new MockWormhole__factory(admin).deploy();
     const relayer = await new MockWormholeRelayer__factory(admin).deploy();
     const bridgeRouter = await new BridgeRouterSender__factory(admin).deploy();
     const refundAddress = getRandomAddress();
-    const adapter = await new WormholeDataAdapter__factory(user).deploy(admin, relayer, bridgeRouter, refundAddress);
+    const adapter = await new WormholeDataAdapter__factory(user).deploy(
+      admin,
+      wormhole,
+      relayer,
+      bridgeRouter,
+      refundAddress
+    );
     await bridgeRouter.setAdapter(adapter);
 
-    return { user, admin, unusedUsers, adapter, relayer, bridgeRouter, refundAddress };
+    return { user, admin, unusedUsers, adapter, wormhole, relayer, bridgeRouter, refundAddress };
   }
 
   async function addChainFixture() {
-    const { user, admin, unusedUsers, adapter, relayer, bridgeRouter, refundAddress } = await loadFixture(
+    const { user, admin, unusedUsers, adapter, wormhole, relayer, bridgeRouter, refundAddress } = await loadFixture(
       deployWormholeDataAdapterFixture
     );
 
@@ -79,6 +87,7 @@ describe("WormholeDataAdapter (unit tests)", () => {
       admin,
       unusedUsers,
       adapter,
+      wormhole,
       relayer,
       bridgeRouter,
       refundAddress,
@@ -221,13 +230,18 @@ describe("WormholeDataAdapter (unit tests)", () => {
 
   describe("Get Send Fee", () => {
     it("Should successfuly get send fee", async () => {
-      const { adapter, folksChainId } = await loadFixture(addChainFixture);
+      const { adapter, wormhole, folksChainId } = await loadFixture(addChainFixture);
+
+      // set publish fee
+      const publishFee = BigInt(getRandomInt(100_000));
+      await wormhole.setMessageFee(publishFee);
 
       const message = getMessage(folksChainId);
+      const deliveryFee = message.params.receiverValue + message.params.gasLimit;
 
       // get send fee
       const fee = await adapter.getSendFee(message);
-      expect(fee).to.be.equal(message.params.receiverValue + message.params.gasLimit);
+      expect(fee).to.be.equal(deliveryFee + publishFee);
     });
 
     it("Should fail to get send fee when chain not added", async () => {
