@@ -398,6 +398,6 @@ library UserLoanLogic {
             loanInterestIndex,
             stableBorrowChangeDelta
         );
-        return balance.calcBorrowBalance(loanInterestIndex, stableBorrowInterestIndex);
+        return balance.calcBorrowBalance(stableBorrowInterestIndex, loanInterestIndex);
     }
 }
