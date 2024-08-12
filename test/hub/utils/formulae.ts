@@ -384,7 +384,8 @@ function calcIncreasingAverageStableBorrowInterestRate(
   averageBorrowStableRate: bigint
 ): bigint {
   return divScale(
-    mulScale(totalStableDebt, averageBorrowStableRate, ONE_18_DP) + mulScale(borrowAmount, borrowStableRate, ONE_18_DP),
+    mulScaleRoundUp(totalStableDebt, averageBorrowStableRate, ONE_18_DP) +
+      mulScaleRoundUp(borrowAmount, borrowStableRate, ONE_18_DP),
     totalStableDebt + borrowAmount,
     ONE_18_DP
   );
@@ -406,7 +407,8 @@ function calcDecreasingAverageStableBorrowInterestRate(
 ): bigint {
   const newTotalStableDebt = totalStableDebt - borrowAmount;
   const overallInterestAmount = maximum(
-    mulScale(totalStableDebt, averageBorrowStableRate, ONE_18_DP) - mulScale(borrowAmount, borrowStableRate, ONE_18_DP),
+    mulScaleRoundUp(totalStableDebt, averageBorrowStableRate, ONE_18_DP) -
+      mulScale(borrowAmount, borrowStableRate, ONE_18_DP),
     0n
   );
   return newTotalStableDebt > 0 ? divScale(overallInterestAmount, newTotalStableDebt, ONE_18_DP) : 0n;
