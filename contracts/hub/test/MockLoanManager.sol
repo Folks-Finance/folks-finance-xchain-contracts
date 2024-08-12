@@ -26,6 +26,7 @@ contract MockLoanManager is ILoanManager {
     event RebalanceDown(bytes32 loanId, uint8 poolId);
 
     bytes32 public constant override HUB_ROLE = keccak256("HUB");
+    bytes32 public constant override REBALANCER_ROLE = keccak256("REBALANCER");
 
     mapping(uint8 poolId => IHubPool) private _pools;
     uint256 private _depositUnderlyingAmount = 0;

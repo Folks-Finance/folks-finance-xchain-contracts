@@ -20,6 +20,7 @@ contract LoanManager is ReentrancyGuard, ILoanManager, LoanManagerState {
     using UserLoanLogic for LoanManagerState.UserLoan;
 
     bytes32 public constant override HUB_ROLE = keccak256("HUB");
+    bytes32 public constant override REBALANCER_ROLE = keccak256("REBALANCER");
 
     /**
      * @notice Constructor
@@ -282,7 +283,7 @@ contract LoanManager is ReentrancyGuard, ILoanManager, LoanManagerState {
     /**
      * @notice Permissionless rebalance up a stable borrow
      */
-    function rebalanceUp(bytes32 loanId, uint8 poolId) external override nonReentrant {
+    function rebalanceUp(bytes32 loanId, uint8 poolId) external override onlyRole(REBALANCER_ROLE) nonReentrant {
         if (!isUserLoanActive(loanId)) revert UnknownUserLoan(loanId);
 
         LoanManagerLogic.executeRebalanceUp(
@@ -295,7 +296,7 @@ contract LoanManager is ReentrancyGuard, ILoanManager, LoanManagerState {
     /**
      * @notice Permissionless rebalance down a stable borrow
      */
-    function rebalanceDown(bytes32 loanId, uint8 poolId) external override nonReentrant {
+    function rebalanceDown(bytes32 loanId, uint8 poolId) external override onlyRole(REBALANCER_ROLE) nonReentrant {
         if (!isUserLoanActive(loanId)) revert UnknownUserLoan(loanId);
 
         LoanManagerLogic.executeRebalanceDown(

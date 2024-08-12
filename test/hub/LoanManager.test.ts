@@ -34,9 +34,10 @@ describe("LoanManager (unit tests)", () => {
   const LISTING_ROLE = ethers.keccak256(convertStringToBytes("LISTING"));
   const ORACLE_ROLE = ethers.keccak256(convertStringToBytes("ORACLE"));
   const HUB_ROLE = ethers.keccak256(convertStringToBytes("HUB"));
+  const REBALANCER_ROLE = ethers.keccak256(convertStringToBytes("REBALANCER"));
 
   async function deployLoanManagerFixture() {
-    const [admin, hub, user, ...unusedUsers] = await ethers.getSigners();
+    const [admin, hub, rebalancer, user, ...unusedUsers] = await ethers.getSigners();
 
     // libraries
     const userLoanLogic = await new UserLoanLogic__factory(user).deploy();
@@ -80,8 +81,9 @@ describe("LoanManager (unit tests)", () => {
       user
     ).deploy(admin, oracleManager);
 
-    // set hub role
+    // set hub and rebalance role
     await loanManager.connect(admin).grantRole(HUB_ROLE, hub);
+    await loanManager.connect(admin).grantRole(REBALANCER_ROLE, rebalancer);
 
     // common
     const loanManagerAddress = await loanManager.getAddress();
@@ -89,6 +91,7 @@ describe("LoanManager (unit tests)", () => {
     return {
       admin,
       hub,
+      rebalancer,
       user,
       unusedUsers,
       loanManager,
@@ -99,7 +102,7 @@ describe("LoanManager (unit tests)", () => {
   }
 
   async function createLoanTypeFixture() {
-    const { admin, hub, user, unusedUsers, loanManager, loanManagerAddress, oracleManager, libraries } =
+    const { admin, hub, rebalancer, user, unusedUsers, loanManager, loanManagerAddress, oracleManager, libraries } =
       await loadFixture(deployLoanManagerFixture);
 
     // create loan type
@@ -110,6 +113,7 @@ describe("LoanManager (unit tests)", () => {
     return {
       admin,
       hub,
+      rebalancer,
       user,
       unusedUsers,
       loanManager,
@@ -138,8 +142,18 @@ describe("LoanManager (unit tests)", () => {
   }
 
   async function addPoolsFixture() {
-    const { admin, hub, user, unusedUsers, loanManager, loanManagerAddress, oracleManager, libraries, loanTypeId } =
-      await loadFixture(createLoanTypeFixture);
+    const {
+      admin,
+      hub,
+      rebalancer,
+      user,
+      unusedUsers,
+      loanManager,
+      loanManagerAddress,
+      oracleManager,
+      libraries,
+      loanTypeId,
+    } = await loadFixture(createLoanTypeFixture);
 
     // prepare pools
     const usdcPoolId = 1;
@@ -154,6 +168,7 @@ describe("LoanManager (unit tests)", () => {
     return {
       admin,
       hub,
+      rebalancer,
       user,
       unusedUsers,
       loanManager,
@@ -172,6 +187,7 @@ describe("LoanManager (unit tests)", () => {
     const {
       admin,
       hub,
+      rebalancer,
       user,
       unusedUsers,
       loanManager,
@@ -267,6 +283,7 @@ describe("LoanManager (unit tests)", () => {
     return {
       admin,
       hub,
+      rebalancer,
       user,
       unusedUsers,
       loanManager,
@@ -282,6 +299,7 @@ describe("LoanManager (unit tests)", () => {
     const {
       admin,
       hub,
+      rebalancer,
       user,
       unusedUsers,
       loanManager,
@@ -301,6 +319,7 @@ describe("LoanManager (unit tests)", () => {
     return {
       admin,
       hub,
+      rebalancer,
       user,
       unusedUsers,
       loanManager,
@@ -320,6 +339,7 @@ describe("LoanManager (unit tests)", () => {
     const {
       admin,
       hub,
+      rebalancer,
       user,
       unusedUsers,
       loanManager,
@@ -349,6 +369,7 @@ describe("LoanManager (unit tests)", () => {
     return {
       admin,
       hub,
+      rebalancer,
       user,
       unusedUsers,
       loanManager,
@@ -416,6 +437,7 @@ describe("LoanManager (unit tests)", () => {
     const {
       admin,
       hub,
+      rebalancer,
       user,
       unusedUsers,
       loanManager,
@@ -450,6 +472,7 @@ describe("LoanManager (unit tests)", () => {
     return {
       admin,
       hub,
+      rebalancer,
       user,
       unusedUsers,
       loanManager,
@@ -473,6 +496,7 @@ describe("LoanManager (unit tests)", () => {
     const {
       admin,
       hub,
+      rebalancer,
       user,
       unusedUsers,
       loanManager,
@@ -509,6 +533,7 @@ describe("LoanManager (unit tests)", () => {
     return {
       admin,
       hub,
+      rebalancer,
       user,
       unusedUsers,
       loanManager,
@@ -657,6 +682,8 @@ describe("LoanManager (unit tests)", () => {
       expect(await loanManager.hasRole(ORACLE_ROLE, admin.address)).to.be.true;
       expect(await loanManager.getRoleAdmin(HUB_ROLE)).to.equal(DEFAULT_ADMIN_ROLE);
       expect(await loanManager.hasRole(HUB_ROLE, hub.address)).to.be.true;
+      expect(await loanManager.getRoleAdmin(REBALANCER_ROLE)).to.equal(DEFAULT_ADMIN_ROLE);
+      expect(await loanManager.hasRole(REBALANCER_ROLE, admin.address)).to.be.false;
 
       // check state
       expect(await loanManager.getOracleManager()).to.equal(oracleManager);
@@ -5678,7 +5705,7 @@ describe("LoanManager (unit tests)", () => {
 
   describe("Rebalance Up", () => {
     it("Should successfully rebalance up", async () => {
-      const { loanManager, loanManagerAddress, pools, loanId, borrowAmount } = await loadFixture(
+      const { rebalancer, loanManager, loanManagerAddress, pools, loanId, borrowAmount } = await loadFixture(
         depositEtherAndStableBorrowUSDCFixture
       );
 
@@ -5695,7 +5722,7 @@ describe("LoanManager (unit tests)", () => {
       });
 
       // rebalance up
-      const rebalanceUp = await loanManager.rebalanceUp(loanId, poolId);
+      const rebalanceUp = await loanManager.connect(rebalancer).rebalanceUp(loanId, poolId);
 
       // check events
       const latestBlockTimestamp = await getLatestBlockTimestamp();
@@ -5730,25 +5757,25 @@ describe("LoanManager (unit tests)", () => {
     });
 
     it("Should fail to rebalance up when user loan is unknown", async () => {
-      const { loanManager, pools } = await loadFixture(depositEtherAndVariableBorrowUSDCFixture);
+      const { rebalancer, loanManager, pools } = await loadFixture(depositEtherAndVariableBorrowUSDCFixture);
 
       // verify unknown
       const loanId = getRandomBytes(BYTES32_LENGTH);
       expect(await loanManager.isUserLoanActive(loanId)).to.be.false;
 
-      // rebalance down
-      const rebalanceUp = loanManager.rebalanceUp(loanId, pools.USDC.poolId);
+      // rebalance up
+      const rebalanceUp = loanManager.connect(rebalancer).rebalanceUp(loanId, pools.USDC.poolId);
       await expect(rebalanceUp).to.be.revertedWithCustomError(loanManager, "UnknownUserLoan").withArgs(loanId);
     });
 
     it("Should fail to rebalance up when user loan doesn't have the stable borrow", async () => {
-      const { loanManager, loanManagerAddress, pools, loanId } = await loadFixture(
+      const { rebalancer, loanManager, loanManagerAddress, pools, loanId } = await loadFixture(
         depositEtherAndVariableBorrowUSDCFixture
       );
 
-      // rebalance down when variable
+      // rebalance up when variable
       let poolId = pools.USDC.poolId;
-      let rebalanceUp = loanManager.rebalanceUp(loanId, poolId);
+      let rebalanceUp = loanManager.connect(rebalancer).rebalanceUp(loanId, poolId);
       const loanManagerLogic = await ethers.getContractAt("LoanManagerLogic", loanManagerAddress);
       await expect(rebalanceUp)
         .to.be.revertedWithCustomError(loanManagerLogic, "NoStableBorrowInLoanForPool")
@@ -5756,16 +5783,26 @@ describe("LoanManager (unit tests)", () => {
 
       // rebalance down when none
       poolId = pools.ETH.poolId;
-      rebalanceUp = loanManager.rebalanceUp(loanId, poolId);
+      rebalanceUp = loanManager.connect(rebalancer).rebalanceUp(loanId, poolId);
       await expect(rebalanceUp)
         .to.be.revertedWithCustomError(loanManagerLogic, "NoStableBorrowInLoanForPool")
         .withArgs(loanId, poolId);
+    });
+
+    it("Should fail to rebalance up when sender doesn't have rebalance role", async () => {
+      const { user, loanManager, pools, loanId } = await loadFixture(depositEtherAndVariableBorrowUSDCFixture);
+
+      // rebalance up
+      const rebalanceUp = loanManager.connect(user).rebalanceUp(loanId, pools.USDC.poolId);
+      await expect(rebalanceUp)
+        .to.be.revertedWithCustomError(loanManager, "AccessControlUnauthorizedAccount")
+        .withArgs(user.address, REBALANCER_ROLE);
     });
   });
 
   describe("Rebalance Down", () => {
     it("Should successfully rebalance down", async () => {
-      const { loanManager, loanManagerAddress, pools, loanId, borrowAmount } = await loadFixture(
+      const { rebalancer, loanManager, loanManagerAddress, pools, loanId, borrowAmount } = await loadFixture(
         depositEtherAndStableBorrowUSDCFixture
       );
 
@@ -5784,7 +5821,7 @@ describe("LoanManager (unit tests)", () => {
       });
 
       // rebalance down
-      const rebalanceDown = await loanManager.rebalanceDown(loanId, poolId);
+      const rebalanceDown = await loanManager.connect(rebalancer).rebalanceDown(loanId, poolId);
 
       // check events
       const latestBlockTimestamp = await getLatestBlockTimestamp();
@@ -5821,25 +5858,25 @@ describe("LoanManager (unit tests)", () => {
     });
 
     it("Should fail to rebalance down when user loan is unknown", async () => {
-      const { loanManager, pools } = await loadFixture(depositEtherAndStableBorrowUSDCFixture);
+      const { rebalancer, loanManager, pools } = await loadFixture(depositEtherAndStableBorrowUSDCFixture);
 
       // verify unknown
       const loanId = getRandomBytes(BYTES32_LENGTH);
       expect(await loanManager.isUserLoanActive(loanId)).to.be.false;
 
       // rebalance down
-      const rebalanceDown = loanManager.rebalanceDown(loanId, pools.USDC.poolId);
+      const rebalanceDown = loanManager.connect(rebalancer).rebalanceDown(loanId, pools.USDC.poolId);
       await expect(rebalanceDown).to.be.revertedWithCustomError(loanManager, "UnknownUserLoan").withArgs(loanId);
     });
 
     it("Should fail to rebalance down when user loan doesn't have the stable borrow", async () => {
-      const { loanManager, loanManagerAddress, pools, loanId } = await loadFixture(
+      const { rebalancer, loanManager, loanManagerAddress, pools, loanId } = await loadFixture(
         depositEtherAndVariableBorrowUSDCFixture
       );
 
       // rebalance down when variable
       let poolId = pools.USDC.poolId;
-      let rebalanceDown = loanManager.rebalanceDown(loanId, poolId);
+      let rebalanceDown = loanManager.connect(rebalancer).rebalanceDown(loanId, poolId);
       const loanManagerLogic = await ethers.getContractAt("LoanManagerLogic", loanManagerAddress);
       await expect(rebalanceDown)
         .to.be.revertedWithCustomError(loanManagerLogic, "NoStableBorrowInLoanForPool")
@@ -5847,14 +5884,14 @@ describe("LoanManager (unit tests)", () => {
 
       // rebalance down when none
       poolId = pools.ETH.poolId;
-      rebalanceDown = loanManager.rebalanceDown(loanId, poolId);
+      rebalanceDown = loanManager.connect(rebalancer).rebalanceDown(loanId, poolId);
       await expect(rebalanceDown)
         .to.be.revertedWithCustomError(loanManagerLogic, "NoStableBorrowInLoanForPool")
         .withArgs(loanId, poolId);
     });
 
     it("Should fail to rebalance down when user loan borrow stable interest rate is below threshold", async () => {
-      const { loanManager, loanManagerAddress, pools, loanId, usdcStableInterestRate } = await loadFixture(
+      const { rebalancer, loanManager, loanManagerAddress, pools, loanId, usdcStableInterestRate } = await loadFixture(
         depositEtherAndStableBorrowUSDCFixture
       );
 
@@ -5870,7 +5907,7 @@ describe("LoanManager (unit tests)", () => {
         stableInterestRate: usdcStableInterestRate,
         threshold,
       });
-      const rebalanceDown = loanManager.rebalanceDown(loanId, poolId);
+      const rebalanceDown = loanManager.connect(rebalancer).rebalanceDown(loanId, poolId);
       const loanManagerLogic = await ethers.getContractAt("LoanManagerLogic", loanManagerAddress);
       await expect(rebalanceDown).to.be.revertedWithCustomError(loanManagerLogic, "RebalanceDownThresholdNotReached");
 
@@ -5881,7 +5918,17 @@ describe("LoanManager (unit tests)", () => {
         stableInterestRate: usdcStableInterestRate,
         threshold,
       });
-      await loanManager.rebalanceDown(loanId, poolId);
+      await loanManager.connect(rebalancer).rebalanceDown(loanId, poolId);
+    });
+
+    it("Should fail to rebalance down when sender doesn't have rebalance role", async () => {
+      const { user, loanManager, pools, loanId } = await loadFixture(depositEtherAndVariableBorrowUSDCFixture);
+
+      // rebalance down
+      const rebalanceDown = loanManager.connect(user).rebalanceDown(loanId, pools.USDC.poolId);
+      await expect(rebalanceDown)
+        .to.be.revertedWithCustomError(loanManager, "AccessControlUnauthorizedAccount")
+        .withArgs(user.address, REBALANCER_ROLE);
     });
   });
 
