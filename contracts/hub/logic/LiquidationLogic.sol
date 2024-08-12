@@ -80,13 +80,20 @@ library LiquidationLogic {
         LoanManagerState.UserLoan storage liquidatorLoan = userLoans[loansParams.liquidatorLoanId];
 
         uint8 colPoolId = loansParams.collateralPoolId;
-        uint16 liquidationFee = loanTypes[violatorLoan.loanTypeId].pools[colPoolId].liquidationFee;
-        collateralSeized = calcCollateralSeized(seizeCollateralFAmount, repayBorrowToCollateralFAmount, liquidationFee);
+        LoanManagerState.LoanPool storage loanPool = loanTypes[violatorLoan.loanTypeId].pools[colPoolId];
 
+        // check the collateral seized is at least the min
+        collateralSeized = calcCollateralSeized(
+            seizeCollateralFAmount,
+            repayBorrowToCollateralFAmount,
+            loanPool.liquidationFee
+        );
         if (collateralSeized.liquidatorAmount < minSeized) revert InsufficientSeized();
 
+        // change the loan collaterals and decrease global collateral used for loan type (still considered deposit in pool)
         violatorLoan.decreaseCollateral(colPoolId, collateralSeized.totalAmount);
         liquidatorLoan.increaseCollateral(colPoolId, collateralSeized.liquidatorAmount);
+        loanPool.decreaseCollateral(collateralSeized.reserveAmount);
     }
 
     /// @notice Checks if the liquidation is possible and returns the violator's liquidity details.
