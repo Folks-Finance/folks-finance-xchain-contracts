@@ -541,7 +541,35 @@ describe("HubPool (unit tests)", () => {
       // calculate amounts
       const amount = BigInt(0.15e18);
       const isFAmount = false;
-      const fAmount = toFAmount(amount, depositInterestIndex);
+      const fAmount = toFAmount(amount, depositInterestIndex, true);
+
+      // update pool with withdraw
+      const updatePoolWithWithdraw = await loanManager.updatePoolWithWithdraw(amount, isFAmount);
+      expect((await hubPool.getDepositData())[1]).to.equal(depositTotalAmount - amount);
+      await expect(updatePoolWithWithdraw).to.emit(hubPool, "InterestIndexesUpdated");
+      await expect(updatePoolWithWithdraw).to.emit(hubPool, "InterestRatesUpdated");
+      await expect(updatePoolWithWithdraw).to.emit(loanManager, "WithdrawPoolParams").withArgs([amount, fAmount]);
+    });
+
+    it("Should successfully update pool with withdraw when 1 amount", async () => {
+      const { admin, user, hubPool } = await loadFixture(deployHubPoolFixture);
+
+      // deploy mock loan manager so can emit event with params
+      const loanManager = await new HubPoolLogged__factory(user).deploy(hubPool);
+      await hubPool.connect(admin).grantRole(LOAN_MANAGER_ROLE, loanManager);
+
+      // set pool data with deposit interest index and deposit total amount
+      const depositInterestIndex = BigInt(1.839232023893e18);
+      const depositTotalAmount = BigInt(10e18);
+      const poolData = getInitialPoolData();
+      poolData.depositData.interestIndex = depositInterestIndex;
+      poolData.depositData.totalAmount = depositTotalAmount;
+      await hubPool.setPoolData(poolData);
+
+      // calculate amounts
+      const amount = BigInt(1);
+      const isFAmount = false;
+      const fAmount = BigInt(1);
 
       // update pool with withdraw
       const updatePoolWithWithdraw = await loanManager.updatePoolWithWithdraw(amount, isFAmount);
@@ -570,6 +598,36 @@ describe("HubPool (unit tests)", () => {
       const amount = BigInt(0.0357235345e18);
       const isFAmount = true;
       const underlingAmount = toUnderlingAmount(amount, depositInterestIndex);
+
+      // update pool with withdraw
+      const updatePoolWithWithdraw = await loanManager.updatePoolWithWithdraw(amount, isFAmount);
+      expect((await hubPool.getDepositData())[1]).to.equal(depositTotalAmount - underlingAmount);
+      await expect(updatePoolWithWithdraw).to.emit(hubPool, "InterestIndexesUpdated");
+      await expect(updatePoolWithWithdraw).to.emit(hubPool, "InterestRatesUpdated");
+      await expect(updatePoolWithWithdraw)
+        .to.emit(loanManager, "WithdrawPoolParams")
+        .withArgs([underlingAmount, amount]);
+    });
+
+    it("Should successfully update pool with withdraw when 1 f amount", async () => {
+      const { admin, user, hubPool } = await loadFixture(deployHubPoolFixture);
+
+      // deploy mock loan manager so can emit event with params
+      const loanManager = await new HubPoolLogged__factory(user).deploy(hubPool);
+      await hubPool.connect(admin).grantRole(LOAN_MANAGER_ROLE, loanManager);
+
+      // set pool data with deposit interest index and deposit total amount
+      const depositInterestIndex = BigInt(1.839232023893e18);
+      const depositTotalAmount = BigInt(10e18);
+      const poolData = getInitialPoolData();
+      poolData.depositData.interestIndex = depositInterestIndex;
+      poolData.depositData.totalAmount = depositTotalAmount;
+      await hubPool.setPoolData(poolData);
+
+      // calculate amounts
+      const amount = BigInt(1);
+      const isFAmount = true;
+      const underlingAmount = BigInt(1);
 
       // update pool with withdraw
       const updatePoolWithWithdraw = await loanManager.updatePoolWithWithdraw(amount, isFAmount);
@@ -1158,7 +1216,7 @@ describe("HubPool (unit tests)", () => {
       await expect(updatePoolWithRepayWithCollateral).to.emit(hubPool, "InterestRatesUpdated");
       await expect(updatePoolWithRepayWithCollateral)
         .to.emit(loanManager, "RepayWithCollateralPoolParams")
-        .withArgs([toFAmount(principalPaid + interestPaid, depositInterestIndex)]);
+        .withArgs([toFAmount(principalPaid + interestPaid, depositInterestIndex, true)]);
     });
 
     it("Should successfully update pool with repay with collateral of stable borrow", async () => {
@@ -1207,7 +1265,45 @@ describe("HubPool (unit tests)", () => {
       await expect(updatePoolWithRepayWithCollateral).to.emit(hubPool, "InterestRatesUpdated");
       await expect(updatePoolWithRepayWithCollateral)
         .to.emit(loanManager, "RepayWithCollateralPoolParams")
-        .withArgs([toFAmount(principalPaid + interestPaid, depositInterestIndex)]);
+        .withArgs([toFAmount(principalPaid + interestPaid, depositInterestIndex, true)]);
+    });
+
+    it("Should successfully update pool with repay with collateral when 1 amount", async () => {
+      const { admin, user, hubPool } = await loadFixture(deployHubPoolFixture);
+
+      // deploy mock loan manager so can emit event with params
+      const loanManager = await new HubPoolLogged__factory(user).deploy(hubPool);
+      await hubPool.connect(admin).grantRole(LOAN_MANAGER_ROLE, loanManager);
+
+      // set pool data
+      const depositInterestIndex = BigInt(1.839232023893e18);
+      const depositTotalAmount = BigInt(10e18);
+      const variableBorrowTotalAmount = BigInt(1.43543539e18);
+      const feeTotalRetainedAmount = BigInt(0.14e18);
+      const poolData = getInitialPoolData();
+      poolData.depositData.interestIndex = depositInterestIndex;
+      poolData.depositData.totalAmount = depositTotalAmount;
+      poolData.variableBorrowData.totalAmount = variableBorrowTotalAmount;
+      poolData.feeData.totalRetainedAmount = feeTotalRetainedAmount;
+      await hubPool.setPoolData(poolData);
+
+      // update pool with repay with collateral
+      const principalPaid = BigInt(0);
+      const interestPaid = BigInt(1);
+      const loanStableRate = BigInt(0);
+      const updatePoolWithRepayWithCollateral = await loanManager.updatePoolWithRepayWithCollateral(
+        principalPaid,
+        interestPaid,
+        loanStableRate
+      );
+      expect((await hubPool.getVariableBorrowData())[3]).to.equal(
+        poolData.variableBorrowData.totalAmount - principalPaid
+      );
+      expect((await hubPool.getDepositData())[1]).to.equal(depositTotalAmount - principalPaid + interestPaid);
+      await expect(updatePoolWithRepayWithCollateral).to.emit(hubPool, "InterestRatesUpdated");
+      await expect(updatePoolWithRepayWithCollateral)
+        .to.emit(loanManager, "RepayWithCollateralPoolParams")
+        .withArgs([BigInt(1)]);
     });
 
     it("Should fail to update pool with repay with collateral when sender is not loan manager", async () => {

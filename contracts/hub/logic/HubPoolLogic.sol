@@ -45,7 +45,7 @@ library HubPoolLogic {
         pool.updateInterestIndexes();
 
         uint256 depositInterestIndex = pool.depositData.interestIndex;
-        depositPoolParams.fAmount = amount.toFAmount(depositInterestIndex);
+        depositPoolParams.fAmount = amount.toFAmount(depositInterestIndex, Math.Rounding.Floor);
         depositPoolParams.depositInterestIndex = depositInterestIndex;
         depositPoolParams.priceFeed = priceFeed;
 
@@ -67,7 +67,7 @@ library HubPoolLogic {
             withdrawPoolParams.underlingAmount = amount.toUnderlingAmount(pool.depositData.interestIndex);
         } else {
             withdrawPoolParams.underlingAmount = amount;
-            withdrawPoolParams.fAmount = amount.toFAmount(pool.depositData.interestIndex);
+            withdrawPoolParams.fAmount = amount.toFAmount(pool.depositData.interestIndex, Math.Rounding.Ceil);
         }
 
         pool.depositData.totalAmount -= withdrawPoolParams.underlingAmount;
@@ -167,7 +167,8 @@ library HubPoolLogic {
 
         pool.depositData.totalAmount -= principalPaid;
         repayWithCollateralPoolParams.fAmount = (principalPaid + interestPaid).toFAmount(
-            pool.depositData.interestIndex
+            pool.depositData.interestIndex,
+            Math.Rounding.Ceil
         );
 
         pool.updateInterestRates();

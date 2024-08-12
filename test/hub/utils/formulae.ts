@@ -255,8 +255,8 @@ function calcDepositReturn(depositAmount: bigint, diit: bigint): bigint {
  * @param diit (18dp)
  * @return fAmountReturn (0dp)
  */
-function toFAmount(amount: bigint, diit: bigint): bigint {
-  return divScale(amount, diit, ONE_18_DP);
+function toFAmount(amount: bigint, diit: bigint, roundUp = false): bigint {
+  return roundUp ? divScaleRoundUp(amount, diit, ONE_18_DP) : divScale(amount, diit, ONE_18_DP);
 }
 
 /**
