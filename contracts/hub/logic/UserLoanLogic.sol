@@ -39,6 +39,7 @@ library UserLoanLogic {
                 if (loan.colPools[i] == poolId) {
                     loan.colPools[i] = loan.colPools[colPoolsLength - 1];
                     loan.colPools.pop();
+                    delete loan.collaterals[poolId];
                     break;
                 }
                 unchecked {
@@ -338,6 +339,7 @@ library UserLoanLogic {
             if (loan.borPools[i] == poolId) {
                 loan.borPools[i] = loan.borPools[borPoolsLength - 1];
                 loan.borPools.pop();
+                delete loan.borrows[poolId];
                 break;
             }
             unchecked {
