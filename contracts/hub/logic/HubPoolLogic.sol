@@ -23,6 +23,7 @@ library HubPoolLogic {
     error CannotMintFToken();
     error DepositCapReached();
     error BorrowCapReached();
+    error InsufficientLiquidity();
     error StableBorrowPercentageCapExceeded();
     error StableBorrowNotSupported();
     error MaxStableRateExceeded(uint256 actual, uint256 max);
@@ -89,6 +90,8 @@ library HubPoolLogic {
 
         bool isStable = maxStableRate > 0;
         uint256 stableBorrowInterestRate = pool.stableBorrowData.interestRate;
+        uint256 totalDebt = pool.variableBorrowData.totalAmount + pool.stableBorrowData.totalAmount;
+        if (amount > pool.depositData.totalAmount - totalDebt) revert InsufficientLiquidity();
         if (isStable && !pool.isStableBorrowSupported()) revert StableBorrowNotSupported();
         if (pool.isBorrowCapReached(priceFeed, amount)) revert BorrowCapReached();
         if (isStable && pool.isStableBorrowCapExceeded(amount)) revert StableBorrowPercentageCapExceeded();
