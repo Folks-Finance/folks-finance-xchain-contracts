@@ -4,6 +4,7 @@ pragma solidity 0.8.23;
 import "../interfaces/IAccountManager.sol";
 
 contract MockAccountManager is IAccountManager {
+    event CreateAccount(bytes32 accountId, uint16 chainId, bytes32 addr, bytes4 nonce, bytes32 refAccountId);
     event UnregisterAddress(bytes32 accountId, uint16 unregisterChainId);
 
     bytes32 public constant override HUB_ROLE = keccak256("HUB");
@@ -16,8 +17,14 @@ contract MockAccountManager is IAccountManager {
     bool private _isAddressRegisteredToAccount = true;
     bool private _isDelegate = true;
 
-    function createAccount(bytes32 accountId, uint16 chainId, bytes32 addr, bytes32 refAccountId) external override {
-        emit CreateAccount(accountId, chainId, addr, refAccountId);
+    function createAccount(
+        bytes32 accountId,
+        uint16 chainId,
+        bytes32 addr,
+        bytes4 nonce,
+        bytes32 refAccountId
+    ) external override {
+        emit CreateAccount(accountId, chainId, addr, nonce, refAccountId);
     }
 
     function inviteAddress(

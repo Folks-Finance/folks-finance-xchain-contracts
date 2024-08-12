@@ -14,6 +14,7 @@ import {
 } from "../../typechain-types";
 import {
   BYTES32_LENGTH,
+  BYTES4_LENGTH,
   UINT16_LENGTH,
   UINT256_LENGTH,
   UINT8_LENGTH,
@@ -139,14 +140,14 @@ describe("SpokeToken contract (unit tests)", () => {
 
       // call create loan and deposit
       const accountId: string = getAccountIdBytes("ACCOUNT_ID");
-      const loanId = getRandomBytes(BYTES32_LENGTH);
+      const nonce: string = getRandomBytes(BYTES4_LENGTH);
       const amount = BigInt(1e9);
       const loanTypeId = 2;
       const loanName = getRandomBytes(BYTES32_LENGTH);
       const createLoanAndDeposit = await spokeToken.createLoanAndDeposit(
         MESSAGE_PARAMS,
         accountId,
-        loanId,
+        nonce,
         amount,
         loanTypeId,
         loanName
@@ -160,7 +161,7 @@ describe("SpokeToken contract (unit tests)", () => {
         accountId,
         user.address,
         ethers.concat([
-          loanId,
+          nonce,
           convertNumberToBytes(poolId, UINT8_LENGTH),
           convertNumberToBytes(amount, UINT256_LENGTH),
           convertNumberToBytes(loanTypeId, UINT16_LENGTH),
@@ -186,14 +187,14 @@ describe("SpokeToken contract (unit tests)", () => {
 
       // call create loan and deposit
       const accountId: string = getAccountIdBytes("ACCOUNT_ID");
-      const loanId = getRandomBytes(BYTES32_LENGTH);
+      const nonce: string = getRandomBytes(BYTES4_LENGTH);
       const amount = BigInt(1e9);
       const loanTypeId = 2;
       const loanName = getRandomBytes(BYTES32_LENGTH);
       const createLoanAndDeposit = spokeToken.createLoanAndDeposit(
         MESSAGE_PARAMS,
         accountId,
-        loanId,
+        nonce,
         amount,
         loanTypeId,
         loanName

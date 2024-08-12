@@ -8,6 +8,7 @@ interface IAccountManager {
         bool registered;
     }
 
+    error GeneratedAccountIdMismatch(bytes32 expected, bytes32 actual);
     error AccountAlreadyCreated(bytes32 accountId);
     error CannotDeleteAccount(bytes32 accountId);
     error AddressPreviouslyRegistered(uint16 chainId, bytes32 addr);
@@ -43,7 +44,13 @@ interface IAccountManager {
     function getAddressRegisteredToAccountOnChain(bytes32 accountId, uint16 chainId) external view returns (bytes32);
     function getAddressInvitedToAccountOnChain(bytes32 accountId, uint16 chainId) external view returns (bytes32);
 
-    function createAccount(bytes32 accountId, uint16 chainId, bytes32 addr, bytes32 refAccountId) external;
+    function createAccount(
+        bytes32 accountId,
+        uint16 chainId,
+        bytes32 addr,
+        bytes4 nonce,
+        bytes32 refAccountId
+    ) external;
     function inviteAddress(
         bytes32 accountId,
         uint16 inviteeChainId,

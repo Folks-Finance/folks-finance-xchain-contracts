@@ -36,6 +36,7 @@ contract AccountManager is IAccountManager, AccessControlDefaultAdminRules {
         bytes32 accountId,
         uint16 chainId,
         bytes32 addr,
+        bytes4 nonce,
         bytes32 refAccountId
     ) external override onlyRole(HUB_ROLE) {
         // check account is not already created (empty is reserved for admin)
@@ -47,6 +48,10 @@ contract AccountManager is IAccountManager, AccessControlDefaultAdminRules {
         // check referrer is well defined
         if (!(isAccountCreated(refAccountId) || refAccountId == bytes32(0)))
             revert InvalidReferrerAccount(refAccountId);
+
+        // check generated account id matches
+        bytes32 genAccountId = keccak256(abi.encodePacked(addr, chainId, nonce));
+        if (genAccountId != accountId) revert GeneratedAccountIdMismatch(genAccountId, accountId);
 
         // create account
         accounts[accountId] = 1;

@@ -43,8 +43,14 @@ contract MockLoanManager is ILoanManager {
         return _pools[poolId];
     }
 
-    function createUserLoan(bytes32 loanId, bytes32 accountId, uint16 loanTypeId, bytes32 loanName) external override {
-        emit CreateUserLoan(loanId, accountId, loanTypeId, loanName);
+    function createUserLoan(
+        bytes4 nonce,
+        bytes32 accountId,
+        uint16 loanTypeId,
+        bytes32 loanName
+    ) external override returns (bytes32 loanId) {
+        emit CreateUserLoan(nonce, accountId, loanTypeId, loanName);
+        loanId = nonce;
     }
 
     function deleteUserLoan(bytes32 loanId, bytes32 accountId) external override {

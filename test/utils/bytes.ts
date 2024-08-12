@@ -28,6 +28,16 @@ export function getAccountIdBytes(accountId: string): string {
   return ethers.zeroPadValue(ethers.hexlify(Buffer.from(accountId)), BYTES32_LENGTH);
 }
 
+export function generateAccountId(addr: string, chainId: number | bigint, nonce: string): string {
+  return ethers.keccak256(
+    ethers.concat([convertEVMAddressToGenericAddress(addr), convertNumberToBytes(chainId, UINT16_LENGTH), nonce])
+  );
+}
+
+export function generateLoanId(accountId: string, nonce: string): string {
+  return ethers.keccak256(ethers.concat([accountId, nonce]));
+}
+
 export function convertNumberToBytes(num: number | bigint, length: number): string {
   // insert 0s at the beginning if data is smaller than length bytes
   const buf = Buffer.alloc(length, 0);
