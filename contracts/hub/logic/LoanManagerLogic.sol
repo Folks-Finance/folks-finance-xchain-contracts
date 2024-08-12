@@ -28,6 +28,7 @@ library LoanManagerLogic {
     error NoStableBorrowInLoanForPool(bytes32 loanId, uint8 poolId);
     error NoVariableBorrowInLoanForPool(bytes32 loanId, uint8 poolId);
     error ExcessRepaymentExceeded(uint256 maxOverRepayment, uint256 excessPaid);
+    error RebalanceUpToLowerRate();
     error RebalanceDownThresholdNotReached();
 
     event Deposit(bytes32 loanId, uint8 poolId, uint256 amount, uint256 fAmount);
@@ -584,9 +585,12 @@ library LoanManagerLogic {
         IHubPool pool = pools[params.poolId];
         DataTypes.BorrowPoolParams memory borrowPoolParams = pool.preparePoolForRebalanceUp();
 
-        // rebalance the user loan borrow
+        // cannot rebalance up to a lower rate
         LoanManagerState.UserLoanBorrow storage loanBorrow = userLoan.borrows[params.poolId];
         uint256 oldLoanStableInterestRate = loanBorrow.stableInterestRate;
+        if (borrowPoolParams.stableInterestRate <= oldLoanStableInterestRate) revert RebalanceUpToLowerRate();
+
+        // rebalance the user loan borrow
         UserLoanLogic.updateLoanBorrowInterests(
             loanBorrow,
             DataTypes.UpdateUserLoanBorrowParams({

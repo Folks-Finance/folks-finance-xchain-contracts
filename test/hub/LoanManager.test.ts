@@ -5918,8 +5918,43 @@ describe("LoanManager (unit tests)", () => {
         .withArgs(loanId, poolId);
     });
 
+    it("Should fail to rebalance up loan rate is not lower than pool rate", async () => {
+      const { rebalancer, loanManager, loanManagerAddress, pools, loanId } = await loadFixture(
+        depositEtherAndStableBorrowUSDCFixture
+      );
+
+      const userLoanBefore = await loanManager.getUserLoan(loanId);
+      const oldBorrow = userLoanBefore[5][0];
+
+      const variableInterestIndex = BigInt(1.05e18);
+      const loanManagerLogic = await ethers.getContractAt("LoanManagerLogic", loanManagerAddress);
+
+      // rebalance up when same
+      await pools.USDC.pool.setBorrowPoolParams({
+        variableInterestIndex,
+        stableInterestRate: oldBorrow.stableInterestRate,
+      });
+      let rebalanceUp = loanManager.connect(rebalancer).rebalanceUp(loanId, pools.USDC.poolId);
+      await expect(rebalanceUp).to.be.revertedWithCustomError(loanManagerLogic, "RebalanceUpToLowerRate");
+
+      // rebalance up when lower
+      await pools.USDC.pool.setBorrowPoolParams({
+        variableInterestIndex,
+        stableInterestRate: oldBorrow.stableInterestRate - BigInt(1),
+      });
+      rebalanceUp = loanManager.connect(rebalancer).rebalanceUp(loanId, pools.USDC.poolId);
+      await expect(rebalanceUp).to.be.revertedWithCustomError(loanManagerLogic, "RebalanceUpToLowerRate");
+
+      // rebalance up when higher
+      await pools.USDC.pool.setBorrowPoolParams({
+        variableInterestIndex,
+        stableInterestRate: oldBorrow.stableInterestRate + BigInt(1),
+      });
+      await loanManager.connect(rebalancer).rebalanceUp(loanId, pools.USDC.poolId);
+    });
+
     it("Should fail to rebalance up when sender doesn't have rebalance role", async () => {
-      const { user, loanManager, pools, loanId } = await loadFixture(depositEtherAndVariableBorrowUSDCFixture);
+      const { user, loanManager, pools, loanId } = await loadFixture(depositEtherAndStableBorrowUSDCFixture);
 
       // rebalance up
       const rebalanceUp = loanManager.connect(user).rebalanceUp(loanId, pools.USDC.poolId);
