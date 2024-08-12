@@ -21,6 +21,7 @@ import {
   MessageReceived,
   MessageToSend,
   buildMessagePayload,
+  getMessageReceivedHash,
 } from "../utils/messages/messages";
 import { SECONDS_IN_DAY } from "../utils/time";
 
@@ -581,13 +582,14 @@ describe("BridgeRouter (unit tests)", () => {
 
       // receive message
       const errorReason = bridgeMessenger.interface.encodeErrorResult("CannotReceiveMessage", [message.messageId]);
+      const messageHash = getMessageReceivedHash(message);
       await expect(receiveMessage).to.emit(adapter, "ReceiveMessage").withArgs(message.messageId);
       await expect(receiveMessage).not.to.emit(bridgeMessenger, "ReceiveMessage");
       await expect(receiveMessage)
         .to.emit(bridgeRouter, "MessageFailed")
-        .withArgs(adapterId, message.messageId, errorReason);
+        .withArgs(adapterId, message.messageId, errorReason, Object.values(message), messageHash);
       expect(await bridgeRouter.seenMessages(adapterId, message.messageId)).to.be.true;
-      expect(await bridgeRouter.failedMessages(adapterId, message.messageId)).to.deep.equal(Object.values(message));
+      expect(await bridgeRouter.failedMessages(adapterId, message.messageId)).to.be.equal(messageHash);
       expect(await ethers.provider.getBalance(bridgeRouter)).to.be.equal(balance);
     });
   });
@@ -605,7 +607,7 @@ describe("BridgeRouter (unit tests)", () => {
 
       // retry message
       const balance = BigInt(30000);
-      const retryMessage = await bridgeRouter.retryMessage(adapterId, message.messageId, { value: balance });
+      const retryMessage = await bridgeRouter.retryMessage(adapterId, message.messageId, message, { value: balance });
 
       await expect(retryMessage).to.emit(bridgeMessenger, "ReceiveMessage").withArgs(message.messageId);
       await expect(retryMessage).to.emit(bridgeRouter, "MessageRetrySucceeded").withArgs(adapterId, message.messageId);
@@ -627,30 +629,33 @@ describe("BridgeRouter (unit tests)", () => {
 
       // retry message
       const balance = BigInt(30000);
-      const retryMessage = await bridgeRouter.retryMessage(adapterId, message.messageId, { value: balance });
+      const retryMessage = await bridgeRouter.retryMessage(adapterId, message.messageId, message, { value: balance });
 
       const errorReason = bridgeMessenger.interface.encodeErrorResult("CannotReceiveMessage", [message.messageId]);
+      const messageHash = getMessageReceivedHash(message);
       await expect(retryMessage).not.to.emit(bridgeMessenger, "ReceiveMessage");
       await expect(retryMessage)
         .to.emit(bridgeRouter, "MessageRetryFailed")
         .withArgs(adapterId, message.messageId, errorReason);
       expect(await bridgeRouter.seenMessages(adapterId, message.messageId)).to.be.true;
-      expect(await bridgeRouter.failedMessages(adapterId, message.messageId)).to.deep.equal(Object.values(message));
+      expect(await bridgeRouter.failedMessages(adapterId, message.messageId)).to.be.equal(messageHash);
       expect(await bridgeRouter.balances(accountId)).to.be.equal(accountBalance + balance);
       expect(await ethers.provider.getBalance(bridgeRouter)).to.be.equal(bridgeRouterBalance + balance);
     });
 
     it("Should fail to retry when original message has not been seen", async () => {
-      const { bridgeRouter, adapterId } = await loadFixture(deployFailedMessageFixture);
+      const { bridgeRouter, adapterId, message } = await loadFixture(deployFailedMessageFixture);
 
       // retry message
       const messageId = getRandomBytes(BYTES32_LENGTH);
-      const retryMessage = bridgeRouter.retryMessage(adapterId, messageId);
-      await expect(retryMessage).to.be.revertedWithCustomError(bridgeRouter, "MessageUnknown").withArgs(messageId);
+      const retryMessage = bridgeRouter.retryMessage(adapterId, messageId, message);
+      await expect(retryMessage)
+        .to.be.revertedWithCustomError(bridgeRouter, "FailedMessageUnknown")
+        .withArgs(adapterId, messageId);
     });
 
     it("Should fail to retry when original message succeeded", async () => {
-      const { unusedUsers, bridgeRouter, adapter, adapterId, adapterAddress, bridgeMessenger, bridgeMessengerAddress } =
+      const { unusedUsers, bridgeRouter, adapter, adapterId, adapterAddress, bridgeMessengerAddress } =
         await loadFixture(deployBridgeMessengerFixture);
       const sender = unusedUsers[0];
 
@@ -669,10 +674,10 @@ describe("BridgeRouter (unit tests)", () => {
       expect(await bridgeRouter.seenMessages(adapterId, message.messageId)).to.be.true;
 
       // retry message
-      const retryMessage = bridgeRouter.retryMessage(adapterId, message.messageId);
+      const retryMessage = bridgeRouter.retryMessage(adapterId, message.messageId, message);
       await expect(retryMessage)
-        .to.be.revertedWithCustomError(bridgeRouter, "MessageUnknown")
-        .withArgs(message.messageId);
+        .to.be.revertedWithCustomError(bridgeRouter, "FailedMessageUnknown")
+        .withArgs(adapterId, message.messageId);
     });
 
     it("Should fail to retry when original message failed but then succeeded", async () => {
@@ -682,11 +687,11 @@ describe("BridgeRouter (unit tests)", () => {
       await bridgeMessenger.setShouldFail(false);
 
       // retry message twice
-      await bridgeRouter.retryMessage(adapterId, message.messageId);
-      const retryMessage = bridgeRouter.retryMessage(adapterId, message.messageId);
+      await bridgeRouter.retryMessage(adapterId, message.messageId, message);
+      const retryMessage = bridgeRouter.retryMessage(adapterId, message.messageId, message);
       await expect(retryMessage)
-        .to.be.revertedWithCustomError(bridgeRouter, "MessageUnknown")
-        .withArgs(message.messageId);
+        .to.be.revertedWithCustomError(bridgeRouter, "FailedMessageUnknown")
+        .withArgs(adapterId, message.messageId);
     });
   });
 
@@ -704,7 +709,7 @@ describe("BridgeRouter (unit tests)", () => {
       // reverse message
       const extraArgs = getRandomBytes(BYTES32_LENGTH);
       const balance = BigInt(30000);
-      const reverseMessage = await bridgeRouter.reverseMessage(adapterId, message.messageId, extraArgs, {
+      const reverseMessage = await bridgeRouter.reverseMessage(adapterId, message.messageId, message, extraArgs, {
         value: balance,
       });
 
@@ -731,29 +736,32 @@ describe("BridgeRouter (unit tests)", () => {
       // reverse message
       const extraArgs = getRandomBytes(BYTES32_LENGTH);
       const balance = BigInt(30000);
-      const reverseMessage = await bridgeRouter.reverseMessage(adapterId, message.messageId, extraArgs, {
+      const reverseMessage = await bridgeRouter.reverseMessage(adapterId, message.messageId, message, extraArgs, {
         value: balance,
       });
 
       const errorReason = bridgeMessenger.interface.encodeErrorResult("CannotReverseMessage", [message.messageId]);
+      const messageHash = getMessageReceivedHash(message);
       await expect(reverseMessage).not.to.emit(bridgeMessenger, "ReceiveMessage");
       await expect(reverseMessage)
         .to.emit(bridgeRouter, "MessageReverseFailed")
         .withArgs(adapterId, message.messageId, errorReason);
       expect(await bridgeRouter.seenMessages(adapterId, message.messageId)).to.be.true;
-      expect(await bridgeRouter.failedMessages(adapterId, message.messageId)).to.deep.equal(Object.values(message));
+      expect(await bridgeRouter.failedMessages(adapterId, message.messageId)).to.be.equal(messageHash);
       expect(await bridgeRouter.balances(accountId)).to.be.equal(accountBalance + balance);
       expect(await ethers.provider.getBalance(bridgeRouter)).to.be.equal(bridgeRouterBalance + balance);
     });
 
     it("Should fail to reverse when original message has not been seen", async () => {
-      const { bridgeRouter, adapterId } = await loadFixture(deployFailedMessageFixture);
+      const { bridgeRouter, adapterId, message } = await loadFixture(deployFailedMessageFixture);
 
       // reverse message
       const messageId = getRandomBytes(BYTES32_LENGTH);
       const extraArgs = getRandomBytes(BYTES32_LENGTH);
-      const reverseMessage = bridgeRouter.reverseMessage(adapterId, messageId, extraArgs);
-      await expect(reverseMessage).to.be.revertedWithCustomError(bridgeRouter, "MessageUnknown").withArgs(messageId);
+      const reverseMessage = bridgeRouter.reverseMessage(adapterId, messageId, message, extraArgs);
+      await expect(reverseMessage)
+        .to.be.revertedWithCustomError(bridgeRouter, "FailedMessageUnknown")
+        .withArgs(adapterId, messageId);
     });
 
     it("Should fail to reverse when original message succeeded", async () => {
@@ -777,10 +785,10 @@ describe("BridgeRouter (unit tests)", () => {
 
       // reverse message
       const extraArgs = getRandomBytes(BYTES32_LENGTH);
-      const reverseMessage = bridgeRouter.reverseMessage(adapterId, message.messageId, extraArgs);
+      const reverseMessage = bridgeRouter.reverseMessage(adapterId, message.messageId, message, extraArgs);
       await expect(reverseMessage)
-        .to.be.revertedWithCustomError(bridgeRouter, "MessageUnknown")
-        .withArgs(message.messageId);
+        .to.be.revertedWithCustomError(bridgeRouter, "FailedMessageUnknown")
+        .withArgs(adapterId, message.messageId);
     });
 
     it("Should fail to reverse when original message failed but then succeeded", async () => {
@@ -791,11 +799,11 @@ describe("BridgeRouter (unit tests)", () => {
 
       // reverse message twice
       const extraArgs = getRandomBytes(BYTES32_LENGTH);
-      await bridgeRouter.reverseMessage(adapterId, message.messageId, extraArgs);
-      const reverseMessage = bridgeRouter.reverseMessage(adapterId, message.messageId, extraArgs);
+      await bridgeRouter.reverseMessage(adapterId, message.messageId, message, extraArgs);
+      const reverseMessage = bridgeRouter.reverseMessage(adapterId, message.messageId, message, extraArgs);
       await expect(reverseMessage)
-        .to.be.revertedWithCustomError(bridgeRouter, "MessageUnknown")
-        .withArgs(message.messageId);
+        .to.be.revertedWithCustomError(bridgeRouter, "FailedMessageUnknown")
+        .withArgs(adapterId, message.messageId);
     });
   });
 
