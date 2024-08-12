@@ -566,8 +566,8 @@ function convToRepayBorrowAmount(
 ): bigint {
   return mulScale(
     convertAssetAmount(collAmount, collPrice, collDecimals, borrPrice, borrDecimals),
-    ONE_4_DP + liquidationBonus,
-    ONE_4_DP
+    ONE_4_DP,
+    ONE_4_DP + liquidationBonus
   );
 }
 
