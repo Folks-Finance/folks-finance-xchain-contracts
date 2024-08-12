@@ -74,15 +74,15 @@ contract AccountManager is IAccountManager, AccessControlDefaultAdminRules {
         if (isAddressRegistered(inviteeChainId, inviteeAddr))
             revert AddressPreviouslyRegistered(inviteeChainId, inviteeAddr);
 
-        // check account does not have address already invited or registered
-        AccountAddress memory accountAddress = accountAddresses[accountId][inviteeChainId];
-        if (accountAddress.invited || accountAddress.registered) revert AccountHasAddress(accountId, inviteeChainId);
+        // check account does not have address registered
+        if (accountAddresses[accountId][inviteeChainId].registered)
+            revert AccountHasAddressRegistered(accountId, inviteeChainId);
 
         // check referrer is well defined
         if (!(isAccountCreated(refAccountId) || refAccountId == bytes32(0)) || accountId == refAccountId)
             revert InvalidReferrerAccount(refAccountId);
 
-        // invite address
+        // invite address (possibly overidding existing invite)
         accountAddresses[accountId][inviteeChainId] = AccountAddress({
             addr: inviteeAddr,
             invited: true,
