@@ -8,7 +8,7 @@ import { NodeDefinitionData, NodeManagerUtil } from "../utils/nodeManagerUtils";
 import { NodeManager } from "../../../typechain-types/contracts/oracle/modules/NodeManager";
 import { MockConstantPriceAndTimestampNode } from "../../../typechain-types";
 
-describe("PriceDeviationSameOracleCircuitBreakerNode", async function () {
+describe("PriceDeviationCircuitBreakerNode", async function () {
   let nodeManager: NodeManager;
   let constantPriceAndTimestampNodePrice: number;
   let constantPriceAndTimestampNodeTimestamp: number;
@@ -50,12 +50,12 @@ describe("PriceDeviationSameOracleCircuitBreakerNode", async function () {
   });
 
   describe("Register node", async function () {
-    it("Should register a PriceDeviationSameOracleCircuitBreaker node", async function () {
+    it("Should register a PriceDeviationCircuitBreaker node", async function () {
       const deviationTolerance = 1e18;
       const encodedParams = abi.encode(["uint256"], [deviationTolerance.toString()]);
       const parentNodeIds = [external22NodeId, constant42NodeId, constant69NodeId];
       const nodeDefinition: NodeDefinitionData = [
-        NodeType.PRICE_DEVIATION_SAME_ORACLE_CIRCUIT_BREAKER,
+        NodeType.PRICE_DEVIATION_CIRCUIT_BREAKER,
         encodedParams,
         parentNodeIds,
       ];
@@ -65,7 +65,7 @@ describe("PriceDeviationSameOracleCircuitBreakerNode", async function () {
       const nodeId = getOracleNodeId(...nodeDefinition);
       const node = await nodeManager.getNode(nodeId);
 
-      expect(node.nodeType).to.equal(NodeType.PRICE_DEVIATION_SAME_ORACLE_CIRCUIT_BREAKER);
+      expect(node.nodeType).to.equal(NodeType.PRICE_DEVIATION_CIRCUIT_BREAKER);
       expect(node.parameters).to.equal(encodedParams);
       expect(node.parents).to.deep.equal(parentNodeIds);
     });
@@ -74,7 +74,7 @@ describe("PriceDeviationSameOracleCircuitBreakerNode", async function () {
       const encodedParams = "0x00";
       const parentNodeIds = [external22NodeId, constant42NodeId, constant69NodeId];
       const nodeDefinition: NodeDefinitionData = [
-        NodeType.PRICE_DEVIATION_SAME_ORACLE_CIRCUIT_BREAKER,
+        NodeType.PRICE_DEVIATION_CIRCUIT_BREAKER,
         encodedParams,
         parentNodeIds,
       ];
@@ -87,11 +87,7 @@ describe("PriceDeviationSameOracleCircuitBreakerNode", async function () {
     it("Should emit InvalidNodeDefinition cause has no parent node", async function () {
       const deviationTolerance = 1e18;
       const encodedParams = abi.encode(["uint256"], [deviationTolerance.toString()]);
-      const nodeDefinition: NodeDefinitionData = [
-        NodeType.PRICE_DEVIATION_SAME_ORACLE_CIRCUIT_BREAKER,
-        encodedParams,
-        [],
-      ];
+      const nodeDefinition: NodeDefinitionData = [NodeType.PRICE_DEVIATION_CIRCUIT_BREAKER, encodedParams, []];
 
       const registerTxn = nodeManager.registerNode(...nodeDefinition);
 
@@ -103,10 +99,12 @@ describe("PriceDeviationSameOracleCircuitBreakerNode", async function () {
       let parentNodeIds: string[];
       let nodeId: string;
 
-      it("Should process correctly when price < comparison price", async function () {
+      beforeEach("Register PriceDeviationCircuitBreaker", async function () {});
+
+      it("Should process correctly with price < comparison price", async function () {
         deviationTolerance = 1e18;
         parentNodeIds = [external22NodeId, constant42NodeId, constant69NodeId];
-        const encodedParams = NodeManagerUtil.encodePriceDeviationSameOracleCircuitBreakerNodeDefinition(
+        const encodedParams = NodeManagerUtil.encodePriceDeviationCircuitBreakerNodeDefinition(
           deviationTolerance,
           parentNodeIds
         );
@@ -117,10 +115,10 @@ describe("PriceDeviationSameOracleCircuitBreakerNode", async function () {
         expect(nodeOutput.price).to.equal(externalNodePrice);
       });
 
-      it("Should process correctly when price > comparison price", async function () {
+      it("Should process correctly with price > comparison price", async function () {
         deviationTolerance = 1e18;
         parentNodeIds = [constant42NodeId, external22NodeId, constant69NodeId];
-        const encodedParams = NodeManagerUtil.encodePriceDeviationSameOracleCircuitBreakerNodeDefinition(
+        const encodedParams = NodeManagerUtil.encodePriceDeviationCircuitBreakerNodeDefinition(
           deviationTolerance,
           parentNodeIds
         );
@@ -135,7 +133,7 @@ describe("PriceDeviationSameOracleCircuitBreakerNode", async function () {
         parentNodeIds = [external22NodeId, constant42NodeId, constant69NodeId];
         deviationTolerance =
           (Math.abs(externalNodePrice - constant42NodePrice) * 10 ** PRECISION) / externalNodePrice + 1;
-        const encodedParams = NodeManagerUtil.encodePriceDeviationSameOracleCircuitBreakerNodeDefinition(
+        const encodedParams = NodeManagerUtil.encodePriceDeviationCircuitBreakerNodeDefinition(
           deviationTolerance,
           parentNodeIds
         );
@@ -149,7 +147,7 @@ describe("PriceDeviationSameOracleCircuitBreakerNode", async function () {
       it("Should raise DeviationToleranceExceeded", async function () {
         deviationTolerance = (Math.abs(externalNodePrice - constant42NodePrice) * 10 ** PRECISION) / externalNodePrice;
         parentNodeIds = [external22NodeId, constant42NodeId];
-        const encodedParams = NodeManagerUtil.encodePriceDeviationSameOracleCircuitBreakerNodeDefinition(
+        const encodedParams = NodeManagerUtil.encodePriceDeviationCircuitBreakerNodeDefinition(
           deviationTolerance,
           parentNodeIds
         );
@@ -158,21 +156,6 @@ describe("PriceDeviationSameOracleCircuitBreakerNode", async function () {
         const nodeOutput = nodeManager.process(nodeId);
 
         await expect(nodeOutput).to.revertedWithCustomError(nodeManager, "DeviationToleranceExceeded");
-      });
-
-      it("Should raise SameOracle", async function () {
-        deviationTolerance =
-          (Math.abs(constant69NodePrice - constant42NodePrice) * 10 ** PRECISION) / constant69NodePrice + 1;
-        parentNodeIds = [constant42NodeId, constant69NodeId];
-        const encodedParams = NodeManagerUtil.encodePriceDeviationSameOracleCircuitBreakerNodeDefinition(
-          deviationTolerance,
-          parentNodeIds
-        );
-        nodeId = await NodeManagerUtil.registerNode(nodeManager, encodedParams);
-
-        const nodeOutput = nodeManager.process(nodeId);
-
-        await expect(nodeOutput).to.revertedWithCustomError(nodeManager, "SameOracle");
       });
     });
   });
