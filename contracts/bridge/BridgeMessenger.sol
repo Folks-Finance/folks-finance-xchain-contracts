@@ -9,6 +9,7 @@ import "./libraries/Messages.sol";
 abstract contract BridgeMessenger is ReentrancyGuard {
     error InvalidBridgeRouter(address router);
     error CannotReceiveMessage(bytes32 messageId);
+    error CannotRetryMessage(bytes32 messageId);
     error CannotReverseMessage(bytes32 messageId);
 
     IBridgeRouter internal immutable bridgeRouter;
@@ -26,11 +27,20 @@ abstract contract BridgeMessenger is ReentrancyGuard {
         _receiveMessage(message);
     }
 
-    function reverseMessage(
+    function retryMessage(
         Messages.MessageReceived memory message,
+        address caller,
         bytes memory extraArgs
     ) external virtual onlyRouter nonReentrant {
-        _reverseMessage(message, extraArgs);
+        _retryMessage(message, caller, extraArgs);
+    }
+
+    function reverseMessage(
+        Messages.MessageReceived memory message,
+        address caller,
+        bytes memory extraArgs
+    ) external virtual onlyRouter nonReentrant {
+        _reverseMessage(message, caller, extraArgs);
     }
 
     function getBridgeRouter() public view returns (address) {
@@ -43,5 +53,15 @@ abstract contract BridgeMessenger is ReentrancyGuard {
 
     function _receiveMessage(Messages.MessageReceived memory message) internal virtual;
 
-    function _reverseMessage(Messages.MessageReceived memory message, bytes memory extraArgs) internal virtual;
+    function _retryMessage(
+        Messages.MessageReceived memory message,
+        address caller,
+        bytes memory extraArgs
+    ) internal virtual;
+
+    function _reverseMessage(
+        Messages.MessageReceived memory message,
+        address caller,
+        bytes memory extraArgs
+    ) internal virtual;
 }

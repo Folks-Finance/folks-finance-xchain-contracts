@@ -269,7 +269,11 @@ contract SpokeCommon is BridgeMessenger, SpokeState {
         revert CannotReceiveMessage(message.messageId);
     }
 
-    function _reverseMessage(Messages.MessageReceived memory message, bytes memory) internal pure override {
+    function _retryMessage(Messages.MessageReceived memory message, address, bytes memory) internal pure override {
+        revert CannotRetryMessage(message.messageId);
+    }
+
+    function _reverseMessage(Messages.MessageReceived memory message, address, bytes memory) internal pure override {
         revert CannotReverseMessage(message.messageId);
     }
 }

@@ -420,8 +420,53 @@ describe("SpokeToken contract (unit tests)", () => {
     });
   });
 
+  it("Retry message should internally call receive message", async () => {
+    const {
+      user,
+      spokeToken,
+      spokeAddress,
+      bridgeRouterAddress,
+      bridgeRouterSigner,
+      hubChainId,
+      hubAddress,
+      initialBucketConfig,
+    } = await loadFixture(deploySpokeFixture);
+
+    // fund bridge router to send transaction
+    setBalance(bridgeRouterAddress, 1e18);
+
+    // receive message
+    const messageId: string = getRandomBytes(BYTES32_LENGTH);
+    const accountId: string = getAccountIdBytes("ACCOUNT_ID");
+    const amount = BigInt(1e9);
+    const message: MessageReceived = {
+      messageId: messageId,
+      sourceChainId: BigInt(hubChainId),
+      sourceAddress: convertEVMAddressToGenericAddress(hubAddress),
+      handler: convertEVMAddressToGenericAddress(spokeAddress),
+      payload: buildMessagePayload(
+        Action.SendToken,
+        accountId,
+        user.address,
+        convertNumberToBytes(amount, UINT256_LENGTH)
+      ),
+      returnAdapterId: BigInt(0),
+      returnGasLimit: BigInt(0),
+    };
+    const extraArgs = "0x";
+    const receiveMessage = await spokeToken.connect(bridgeRouterSigner).retryMessage(message, user.address, extraArgs);
+    await expect(receiveMessage).to.emit(spokeToken, "SendToken").withArgs(user.address, amount);
+
+    // capacity decrease
+    const periodNumber = await spokeToken.currentPeriodNumber();
+    await expect(receiveMessage)
+      .to.emit(spokeToken, "CapacityDecreased")
+      .withArgs(periodNumber, amount, initialBucketConfig.limit - amount);
+  });
+
   it("Should fail to reverse message", async () => {
-    const { spokeToken, spokeAddress, bridgeRouterAddress, bridgeRouterSigner } = await loadFixture(deploySpokeFixture);
+    const { user, spokeToken, spokeAddress, bridgeRouterAddress, bridgeRouterSigner } =
+      await loadFixture(deploySpokeFixture);
 
     // fund bridge router to send transaction
     setBalance(bridgeRouterAddress, 1e18);
@@ -439,7 +484,7 @@ describe("SpokeToken contract (unit tests)", () => {
       returnGasLimit: BigInt(0),
     };
     const extraArgs = "0x";
-    const receiveMessage = spokeToken.connect(bridgeRouterSigner).reverseMessage(message, extraArgs);
+    const receiveMessage = spokeToken.connect(bridgeRouterSigner).reverseMessage(message, user.address, extraArgs);
     await expect(receiveMessage).to.be.revertedWithCustomError(spokeToken, "CannotReverseMessage").withArgs(messageId);
   });
 });

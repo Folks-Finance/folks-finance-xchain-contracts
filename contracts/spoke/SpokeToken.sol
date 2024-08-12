@@ -178,7 +178,11 @@ abstract contract SpokeToken is BridgeMessenger, SpokeState, RateLimited {
         }
     }
 
-    function _reverseMessage(Messages.MessageReceived memory message, bytes memory) internal pure override {
+    function _retryMessage(Messages.MessageReceived memory message, address, bytes memory) internal override {
+        return _receiveMessage(message);
+    }
+
+    function _reverseMessage(Messages.MessageReceived memory message, address, bytes memory) internal pure override {
         revert CannotReverseMessage(message.messageId);
     }
 }

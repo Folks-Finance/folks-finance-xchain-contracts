@@ -61,7 +61,7 @@ describe("BridgeMessenger contract (unit tests)", () => {
   });
 
   describe("Send Message", () => {
-    it("Should successfuly send message passing on fee to bridge router", async () => {
+    it("Should successfully send message passing on fee to bridge router", async () => {
       const { user, bridgeRouter, bridgeMessenger } = await loadFixture(deployBridgeMessengerSenderFixture);
 
       // before balances
@@ -96,8 +96,8 @@ describe("BridgeMessenger contract (unit tests)", () => {
   });
 
   describe("Receive Message", () => {
-    it("Should successfuly call internal receive message in bridge messenger", async () => {
-      const { bridgeRouter, bridgeMessenger } = await loadFixture(deployBridgeMessengerReceiverFixture);
+    it("Should successfully call internal receive message in bridge messenger", async () => {
+      const { user, bridgeRouter, bridgeMessenger } = await loadFixture(deployBridgeMessengerReceiverFixture);
 
       const messageId: string = getRandomBytes(BYTES32_LENGTH);
       const message: MessageReceived = {
@@ -111,14 +111,14 @@ describe("BridgeMessenger contract (unit tests)", () => {
       };
 
       // receive message
-      const receiveMessage = bridgeRouter.receiveMessage(message);
+      const receiveMessage = bridgeRouter.connect(user).receiveMessage(message);
       await expect(receiveMessage).to.emit(bridgeMessenger, "ReceiveMessage").withArgs(messageId);
     });
   });
 
-  describe("Reverse Message", () => {
-    it("Should successfuly call internal reverse message in bridge messenger", async () => {
-      const { bridgeRouter, bridgeMessenger } = await loadFixture(deployBridgeMessengerReceiverFixture);
+  describe("Retry Message", () => {
+    it("Should successfully call internal retry message in bridge messenger", async () => {
+      const { user, bridgeRouter, bridgeMessenger } = await loadFixture(deployBridgeMessengerReceiverFixture);
 
       const messageId: string = getRandomBytes(BYTES32_LENGTH);
       const message: MessageReceived = {
@@ -133,8 +133,34 @@ describe("BridgeMessenger contract (unit tests)", () => {
       const extraArgs = getRandomBytes(BYTES32_LENGTH);
 
       // reverse message
-      const reverseMessage = bridgeRouter.reverseMessage(message, extraArgs);
-      await expect(reverseMessage).to.emit(bridgeMessenger, "ReverseMessage").withArgs(messageId, extraArgs);
+      const reverseMessage = bridgeRouter.retryMessage(message, extraArgs);
+      await expect(reverseMessage)
+        .to.emit(bridgeMessenger, "RetryMessage")
+        .withArgs(messageId, user.address, extraArgs);
+    });
+  });
+
+  describe("Reverse Message", () => {
+    it("Should successfully call internal reverse message in bridge messenger", async () => {
+      const { user, bridgeRouter, bridgeMessenger } = await loadFixture(deployBridgeMessengerReceiverFixture);
+
+      const messageId: string = getRandomBytes(BYTES32_LENGTH);
+      const message: MessageReceived = {
+        messageId: messageId,
+        sourceChainId: BigInt(0),
+        sourceAddress: convertEVMAddressToGenericAddress(getRandomAddress()),
+        handler: convertEVMAddressToGenericAddress(await bridgeMessenger.getAddress()),
+        payload: buildMessagePayload(0, getAccountIdBytes("ACCOUNT_ID"), getRandomAddress(), "0x"),
+        returnAdapterId: BigInt(0),
+        returnGasLimit: BigInt(0),
+      };
+      const extraArgs = getRandomBytes(BYTES32_LENGTH);
+
+      // reverse message
+      const reverseMessage = bridgeRouter.connect(user).reverseMessage(message, extraArgs);
+      await expect(reverseMessage)
+        .to.emit(bridgeMessenger, "ReverseMessage")
+        .withArgs(messageId, user.address, extraArgs);
     });
   });
 });

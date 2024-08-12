@@ -14,8 +14,9 @@ contract MockAccountManager is IAccountManager {
     bytes32 private _addressInvitedToAccountOnChain;
     bool private _isAccountCreated = true;
     bool private _isAddressInvitedToAccount = true;
-    bool private _isAddressRegisteredToAccount = true;
-    bool private _isDelegate = true;
+
+    mapping(bytes32 addr => mapping(uint16 chainId => bytes32 accountId)) private registered;
+    mapping(bytes32 accountId => mapping(address => bool isDelegated)) private delegated;
 
     function createAccount(
         bytes32 accountId,
@@ -60,16 +61,16 @@ contract MockAccountManager is IAccountManager {
         _addressRegisteredToAccountOnChain = newAddressRegisteredToAccountOnChain;
     }
 
-    function setIsAddressRegisteredToAccount(bool newIsAddressRegisteredToAccount) external {
-        _isAddressRegisteredToAccount = newIsAddressRegisteredToAccount;
+    function setIsAddressRegisteredToAccount(bytes32 accountId, uint16 chainId, bytes32 addr) external {
+        registered[addr][chainId] = accountId;
     }
 
-    function setIsDelegate(bool newIsDelegate) external {
-        _isDelegate = newIsDelegate;
+    function setIsDelegate(bytes32 accountId, address addr, bool newIsDelegate) external {
+        delegated[accountId][addr] = newIsDelegate;
     }
 
-    function getNumAddressesRegisteredToAccount(bytes32) external view override returns (uint16) {
-        return _isAddressRegisteredToAccount ? 1 : 0;
+    function getNumAddressesRegisteredToAccount(bytes32) external pure override returns (uint16) {
+        return 0;
     }
 
     function getAccountIdOfAddressOnChain(bytes32, uint16) external view override returns (bytes32) {
@@ -96,11 +97,15 @@ contract MockAccountManager is IAccountManager {
         return _isAddressInvitedToAccount;
     }
 
-    function isAddressRegisteredToAccount(bytes32, uint16, bytes32) public view override returns (bool) {
-        return _isAddressRegisteredToAccount;
+    function isAddressRegisteredToAccount(
+        bytes32 accountId,
+        uint16 chainId,
+        bytes32 addr
+    ) public view override returns (bool) {
+        return registered[addr][chainId] == accountId;
     }
 
-    function isDelegate(bytes32, address) public view override returns (bool) {
-        return _isDelegate;
+    function isDelegate(bytes32 accountId, address addr) public view override returns (bool) {
+        return delegated[accountId][addr];
     }
 }

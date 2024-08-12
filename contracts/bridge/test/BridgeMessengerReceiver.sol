@@ -6,7 +6,8 @@ import "../libraries/Messages.sol";
 
 contract BridgeMessengerReceiver is BridgeMessenger {
     event ReceiveMessage(bytes32 messageId);
-    event ReverseMessage(bytes32 messageId, bytes extraArgs);
+    event RetryMessage(bytes32 messageId, address caller, bytes extraArgs);
+    event ReverseMessage(bytes32 messageId, address caller, bytes extraArgs);
 
     bool private shouldFail = false;
 
@@ -21,8 +22,21 @@ contract BridgeMessengerReceiver is BridgeMessenger {
         emit ReceiveMessage(message.messageId);
     }
 
-    function _reverseMessage(Messages.MessageReceived memory message, bytes memory extraArgs) internal override {
+    function _retryMessage(
+        Messages.MessageReceived memory message,
+        address caller,
+        bytes memory extraArgs
+    ) internal override {
+        if (shouldFail) revert CannotRetryMessage(message.messageId);
+        emit RetryMessage(message.messageId, caller, extraArgs);
+    }
+
+    function _reverseMessage(
+        Messages.MessageReceived memory message,
+        address caller,
+        bytes memory extraArgs
+    ) internal override {
         if (shouldFail) revert CannotReverseMessage(message.messageId);
-        emit ReverseMessage(message.messageId, extraArgs);
+        emit ReverseMessage(message.messageId, caller, extraArgs);
     }
 }
