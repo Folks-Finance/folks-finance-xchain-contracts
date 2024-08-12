@@ -36,6 +36,7 @@ import {
   toFAmount,
   toUnderlingAmount,
 } from "./utils/formulae";
+import { SECONDS_IN_YEAR } from "./utils/mathLib";
 
 describe("LoanManager (unit tests)", () => {
   const DEFAULT_ADMIN_ROLE = getEmptyBytes(BYTES32_LENGTH);
@@ -2423,6 +2424,74 @@ describe("LoanManager (unit tests)", () => {
       // borrow when okay
       borrowAmount = BigInt(1100e6);
       await loanManager.connect(hub).borrow(loanId, accountId, poolId, borrowAmount, BigInt(0));
+    });
+
+    it("Should fail to borrow when user loan is under-collateralised from variable interest", async () => {
+      const { hub, loanManager, loanManagerAddress, pools, loanId, accountId, usdcVariableInterestIndex } =
+        await loadFixture(depositEtherAndVariableBorrowUSDCFixture);
+
+      // User Loan:
+      // Collateral 1.00 ETH = $3,000 -> 70% CF = $2100
+      // Borrow 1,000 USDC = $1,000
+
+      // scale borrow balance to be 2.1x
+      let variableInterestIndex = (usdcVariableInterestIndex * BigInt(21)) / BigInt(10);
+      const stableInterestRate = BigInt(0.1e18);
+      await pools.USDC.pool.setBorrowPoolParams({ variableInterestIndex, stableInterestRate });
+      await pools.USDC.pool.setUpdatedVariableBorrowInterestIndex(variableInterestIndex);
+
+      // prepare borrow
+      await pools.ETH.pool.setBorrowPoolParams({ variableInterestIndex: BigInt(1e18), stableInterestRate });
+      await pools.ETH.pool.setUpdatedVariableBorrowInterestIndex(BigInt(1e18));
+
+      // borrow when under-collateralised
+      const borrowAmount = BigInt(1);
+      const borrow = loanManager.connect(hub).borrow(loanId, accountId, pools.ETH.poolId, borrowAmount, BigInt(0));
+      const loanManagerLogic = await ethers.getContractAt("LoanManagerLogic", loanManagerAddress);
+      await expect(borrow).to.be.revertedWithCustomError(loanManagerLogic, "UnderCollateralizedLoan").withArgs(loanId);
+
+      // borrow when okay - scale borrow balance to be 2x
+      variableInterestIndex = (usdcVariableInterestIndex * BigInt(20)) / BigInt(10);
+      await pools.USDC.pool.setBorrowPoolParams({ variableInterestIndex, stableInterestRate });
+      await pools.USDC.pool.setUpdatedVariableBorrowInterestIndex(variableInterestIndex);
+      await loanManager.connect(hub).borrow(loanId, accountId, pools.ETH.poolId, borrowAmount, BigInt(0));
+    });
+
+    it("Should fail to borrow when user loan is under-collateralised from stable interest", async () => {
+      const { admin, hub, loanManager, loanManagerAddress, oracleManager, loanTypeId, pools, loanId, accountId } =
+        await loadFixture(depositEtherFixture);
+
+      // set prices
+      const ethNodeOutputData = getNodeOutputData(BigInt(1000e18));
+      await oracleManager.setNodeOutput(pools.ETH.poolId, pools.ETH.tokenDecimals, ethNodeOutputData);
+
+      // prepare borrow
+      const variableInterestIndex = BigInt(1.05e18);
+      const stableInterestRate = BigInt(2e18);
+      await pools.ETH.pool.setBorrowPoolParams({ variableInterestIndex, stableInterestRate });
+      await pools.ETH.pool.setUpdatedVariableBorrowInterestIndex(variableInterestIndex);
+      await pools.USDC.pool.setBorrowPoolParams({ variableInterestIndex, stableInterestRate: BigInt(0.1e18) });
+      await pools.USDC.pool.setUpdatedVariableBorrowInterestIndex(variableInterestIndex);
+
+      // borrow 0.35 ETH
+      await loanManager.connect(hub).borrow(loanId, accountId, pools.ETH.poolId, BigInt(0.35e18), stableInterestRate);
+
+      // User Loan:
+      // Collateral 1.00 ETH = $1,000 -> 70% CF = $700
+      // Borrow 0.35 ETH = $350
+
+      // borrow when okay
+      const borrowAmount = BigInt(1);
+      await loanManager.connect(hub).borrow(loanId, accountId, pools.USDC.poolId, borrowAmount, BigInt(0));
+
+      // scale borrow balance to be 2x (also compounded)
+      const timestamp = (await getLatestBlockTimestamp()) + Number(SECONDS_IN_YEAR);
+      await time.setNextBlockTimestamp(timestamp);
+
+      // borrow when under-collateralised
+      const borrow = loanManager.connect(hub).borrow(loanId, accountId, pools.USDC.poolId, borrowAmount, BigInt(0));
+      const loanManagerLogic = await ethers.getContractAt("LoanManagerLogic", loanManagerAddress);
+      await expect(borrow).to.be.revertedWithCustomError(loanManagerLogic, "UnderCollateralizedLoan").withArgs(loanId);
     });
 
     it("Should fail to borrow when existing variable borrow and trying to stable borrow", async () => {
