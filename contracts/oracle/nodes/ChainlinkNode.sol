@@ -16,16 +16,16 @@ library ChainlinkNode {
     uint256 public constant PRECISION = 18;
 
     /// @notice Get the Chainlink price feed, compute the TWAP if twapTimeInterval is not zero and returns the node output.
-    /// @param parameters Params in bytes to decode in order to extract: Chainlink aggregator address, TWAP time interval and decimals.
+    /// @param parameters Params in bytes to decode in order to extract: Chainlink aggregator address and TWAP time interval.
     /// @return nodeOutput The output given by: price processed (standardized to 18 d.p.), timestamp i.e. updatedAt from Chainlink response, node type.
     function process(bytes memory parameters) internal view returns (NodeOutput.Data memory nodeOutput) {
-        (address chainlinkAggregatorAddr, uint256 twapTimeInterval, uint8 decimals) = abi.decode(
-            parameters,
-            (address, uint256, uint8)
-        );
+        (address chainlinkAggregatorAddr, uint256 twapTimeInterval) = abi.decode(parameters, (address, uint256));
 
         AggregatorV3Interface chainlinkAggregator = AggregatorV3Interface(chainlinkAggregatorAddr);
         (uint80 roundId, int256 answer, , uint256 updatedAt, ) = chainlinkAggregator.latestRoundData();
+
+        /// @dev Fetch Chainlink aggregator decimals
+        uint8 decimals = chainlinkAggregator.decimals();
 
         /// @dev Calculate the price. If the TWAP time interval is 0, use the latest price. Otherwise, calculate the TWAP price.
         uint256 price = twapTimeInterval == 0
@@ -83,20 +83,17 @@ library ChainlinkNode {
     /// @param nodeDefinition The node definition to check.
     /// @return A boolean indicating whether the node definition is valid.
     function isValid(NodeDefinition.Data memory nodeDefinition) internal view returns (bool) {
-        /// @dev Must have no parents and three parameters: contract address, twapInterval, decimals
-        if (nodeDefinition.parents.length > 0 || nodeDefinition.parameters.length != 32 * 3) {
+        /// @dev Must have no parents and three parameters: contract address, twapInterval
+        if (nodeDefinition.parents.length > 0 || nodeDefinition.parameters.length != 32 * 2) {
             return false;
         }
 
-        (address chainlinkAggregatorAddr, , uint8 decimals) = abi.decode(
-            nodeDefinition.parameters,
-            (address, uint256, uint8)
-        );
+        (address chainlinkAggregatorAddr, ) = abi.decode(nodeDefinition.parameters, (address, uint256));
         AggregatorV3Interface chainlinkAggregator = AggregatorV3Interface(chainlinkAggregatorAddr);
 
         /// @dev Check call Chainlink without error
         chainlinkAggregator.latestRoundData();
 
-        return decimals == chainlinkAggregator.decimals();
+        return true;
     }
 }
