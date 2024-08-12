@@ -33,4 +33,6 @@ export const getRandomPriceInRangeWithDp = (min: number, max: number, dp: number
   BigInt(Math.floor((Math.random() * (max - min) + min) * 10 ** dp));
 
 export const priceToPrecisionDp = (price: bigint, decimals: number, precision: number) =>
-  precision > decimals ? price * BigInt(10 ** (precision - decimals)) : price / BigInt(10 ** (decimals - precision));
+  precision > decimals
+    ? price * BigInt(10) ** BigInt(precision - decimals)
+    : price / BigInt(10) ** BigInt(decimals - precision);

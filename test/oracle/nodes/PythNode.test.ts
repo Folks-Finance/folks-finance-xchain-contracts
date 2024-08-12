@@ -1,7 +1,7 @@
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { PRECISION, abi, getOracleNodeId } from "../utils/utils";
+import { PRECISION, abi, getOracleNodeId, priceToPrecisionDp } from "../utils/utils";
 import NodeType from "../assets/NodeType";
 import { deployNodeManagerFixture } from "../bootstrap";
 import { NodeManagerUtil } from "../utils/nodeManagerUtils";
@@ -135,7 +135,7 @@ for (const pythPrice of pythPrices) {
       it("Should process price correctly", async function () {
         const nodeOutput = await nodeManager.process(nodeId);
 
-        expect(nodeOutput.price).to.equal(ethers.parseUnits(price.toString(), PRECISION - decimals));
+        expect(nodeOutput.price).to.equal(priceToPrecisionDp(price, decimals, PRECISION));
         expect(nodeOutput.timestamp).to.equal(updateTimestamp);
         expect(nodeOutput.additionalParam1).to.equal(0);
         expect(nodeOutput.additionalParam2).to.equal(0);
@@ -144,7 +144,7 @@ for (const pythPrice of pythPrices) {
       it("Should process ema price correctly", async function () {
         const nodeOutput = await nodeManager.process(nodeIdWithEmaPrice);
 
-        expect(nodeOutput.price).to.equal(ethers.parseUnits(emaPrice.toString(), PRECISION - decimals));
+        expect(nodeOutput.price).to.equal(priceToPrecisionDp(emaPrice, decimals, PRECISION));
         expect(nodeOutput.timestamp).to.equal(updateTimestamp);
         expect(nodeOutput.additionalParam1).to.equal(0);
         expect(nodeOutput.additionalParam2).to.equal(0);
