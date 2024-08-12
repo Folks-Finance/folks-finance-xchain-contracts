@@ -542,14 +542,14 @@ describe("BridgeRouter (unit tests)", () => {
     });
 
     it("Should fail to receive message when adapter not added", async () => {
-      const { unusedUsers, bridgeRouter } = await loadFixture(deployBridgeRouterFixture);
+      const { unusedUsers, bridgeRouter, bridgeMessengerAddress } = await loadFixture(deployBridgeMessengerFixture);
       const sender = unusedUsers[0];
 
       const message: MessageReceived = {
         messageId: getRandomBytes(BYTES32_LENGTH),
         sourceChainId: BigInt(0),
         sourceAddress: convertEVMAddressToGenericAddress(sender.address),
-        handler: convertEVMAddressToGenericAddress(getRandomAddress()),
+        handler: convertEVMAddressToGenericAddress(bridgeMessengerAddress),
         payload: buildMessagePayload(0, accountId, sender.address, "0x"),
         returnAdapterId: BigInt(0),
         returnGasLimit: BigInt(0),

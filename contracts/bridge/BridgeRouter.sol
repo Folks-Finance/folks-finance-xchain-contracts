@@ -103,7 +103,7 @@ abstract contract BridgeRouter is IBridgeRouter, AccessControlDefaultAdminRules 
         // check if caller is valid adapter
         IBridgeAdapter adapter = IBridgeAdapter(msg.sender);
         uint16 adapterId = adapterToId[adapter];
-        if (!isAdapterInitialized(adapterId)) revert AdapterUnknown(adapter);
+        if (adapter != getAdapter(adapterId)) revert AdapterUnknown(adapter);
 
         // check if haven't seen message
         if (seenMessages[adapterId][message.messageId]) revert MessageAlreadySeen(message.messageId);
