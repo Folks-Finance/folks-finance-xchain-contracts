@@ -21,8 +21,8 @@ export class NodeManagerUtil {
     return nodeId;
   }
 
-  public static encodeChainlinkNodeDefinition(contract: string, twap: number, decimals: number): NodeDefinitionData {
-    return [NodeType.CHAINLINK, abi.encode(["address", "uint256", "uint8"], [contract, twap, decimals]), []];
+  public static encodeChainlinkNodeDefinition(contract: string, twap: number): NodeDefinitionData {
+    return [NodeType.CHAINLINK, abi.encode(["address", "uint256"], [contract, twap]), []];
   }
 
   public static encodePythNodeDefinition(contract: string, feedId: string, useEMA: boolean): NodeDefinitionData {

@@ -50,10 +50,7 @@ for (const decimals of decimalsArray) {
       it("Should register a chainlink node", async function () {
         const twapInterval = 0;
 
-        const encodedParams = abi.encode(
-          ["address", "uint256", "uint8"],
-          [mockChainlinkAggregatorAddr, twapInterval, decimals]
-        );
+        const encodedParams = abi.encode(["address", "uint256"], [mockChainlinkAggregatorAddr, twapInterval]);
         const registerTxn = await nodeManager.registerNode(NodeType.CHAINLINK, encodedParams, []);
         await registerTxn.wait();
 
@@ -73,26 +70,10 @@ for (const decimals of decimalsArray) {
         await expect(registerTxn).to.revertedWithCustomError(nodeManager, "InvalidNodeDefinition");
       });
 
-      it("Should emit InvalidNodeDefinition cause param decimals is not correct", async function () {
-        const twapInterval = 0;
-        const decimals = 0;
-        const encodedParams = abi.encode(
-          ["address", "uint256", "uint8"],
-          [mockChainlinkAggregatorAddr, twapInterval, decimals]
-        );
-
-        const registerTxn = nodeManager.registerNode(NodeType.CHAINLINK, encodedParams, []);
-
-        await expect(registerTxn).to.revertedWithCustomError(nodeManager, "InvalidNodeDefinition");
-      });
-
       it("Should emit InvalidNodeDefinition cause has parent node", async function () {
         const twapInterval = 0;
 
-        const encodedParams = abi.encode(
-          ["address", "uint256", "uint8"],
-          [mockChainlinkAggregatorAddr, twapInterval, decimals]
-        );
+        const encodedParams = abi.encode(["address", "uint256"], [mockChainlinkAggregatorAddr, twapInterval]);
         const fakeParent = ethers.encodeBytes32String("FakeParent");
 
         const registerTxn = nodeManager.registerNode(NodeType.CHAINLINK, encodedParams, [fakeParent]);
@@ -110,8 +91,7 @@ for (const decimals of decimalsArray) {
 
         const encNodeNoTwapParams = NodeManagerUtil.encodeChainlinkNodeDefinition(
           mockChainlinkAggregatorAddr,
-          twapInterval,
-          decimals
+          twapInterval
         );
         nodeId = await NodeManagerUtil.registerNode(nodeManager, encNodeNoTwapParams);
       });
@@ -120,6 +100,28 @@ for (const decimals of decimalsArray) {
         const nodeOutput = await nodeManager.process(nodeId);
 
         expect(nodeOutput.price).to.equal(priceToPrecisionDp(prices[prices.length - 1], decimals, PRECISION));
+        expect(nodeOutput.timestamp).to.equal(deployBlockTimestamp - timestampDeltas[timestampDeltas.length - 1]);
+        expect(nodeOutput.additionalParam1).to.equal(0);
+        expect(nodeOutput.additionalParam2).to.equal(0);
+      });
+
+      it("Should process correctly without twap after decimals increased", async function () {
+        const newDecimals = decimals + 3;
+        await mockChainlinkAggregator.setDecimals(newDecimals);
+        const nodeOutput = await nodeManager.process(nodeId);
+
+        expect(nodeOutput.price).to.equal(priceToPrecisionDp(prices[prices.length - 1], newDecimals, PRECISION));
+        expect(nodeOutput.timestamp).to.equal(deployBlockTimestamp - timestampDeltas[timestampDeltas.length - 1]);
+        expect(nodeOutput.additionalParam1).to.equal(0);
+        expect(nodeOutput.additionalParam2).to.equal(0);
+      });
+
+      it("Should process correctly without twap after decimals decreased", async function () {
+        const newDecimals = decimals - 3;
+        await mockChainlinkAggregator.setDecimals(newDecimals);
+        const nodeOutput = await nodeManager.process(nodeId);
+
+        expect(nodeOutput.price).to.equal(priceToPrecisionDp(prices[prices.length - 1], newDecimals, PRECISION));
         expect(nodeOutput.timestamp).to.equal(deployBlockTimestamp - timestampDeltas[timestampDeltas.length - 1]);
         expect(nodeOutput.additionalParam1).to.equal(0);
         expect(nodeOutput.additionalParam2).to.equal(0);
@@ -142,8 +144,7 @@ for (const decimals of decimalsArray) {
 
           const encNodeTwapParams = NodeManagerUtil.encodeChainlinkNodeDefinition(
             await mockChainlinkAggregator.getAddress(),
-            twapInterval,
-            decimals
+            twapInterval
           );
 
           nodeIdTwap = await NodeManagerUtil.registerNode(nodeManager, encNodeTwapParams);

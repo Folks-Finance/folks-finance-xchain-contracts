@@ -60,4 +60,8 @@ contract MockChainlinkAggregator is AggregatorV3Interface {
     function setPrice(int256 price, uint256 index) external {
         _prices[index] = price;
     }
+
+    function setDecimals(uint8 decimals_) external {
+        _decimals = decimals_;
+    }
 }
