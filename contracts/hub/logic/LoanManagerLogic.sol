@@ -187,7 +187,7 @@ library LoanManagerLogic {
         userLoan.decreaseCollateral(params.poolId, withdrawPoolParams.fAmount);
         loanPool.decreaseCollateral(withdrawPoolParams.fAmount);
 
-        // if applicable, check loan is over-collaterised after the withdrawal
+        // if applicable, check loan is over-collateralised after the withdrawal
         if (params.checkOverCollateralization)
             if (!userLoan.isLoanOverCollateralized(pools, loanTypes[userLoan.loanTypeId].pools, oracleManager))
                 revert UnderCollateralizedLoan(params.loanId);
@@ -230,7 +230,7 @@ library LoanManagerLogic {
         userLoan.decreaseCollateral(params.poolId, params.fAmount);
         loanPool.decreaseCollateral(params.fAmount);
 
-        // check loan is over-collaterised after the withdrawal
+        // check loan is over-collateralised after the withdrawal
         if (!userLoan.isLoanOverCollateralized(pools, loanTypes[userLoan.loanTypeId].pools, oracleManager))
             revert UnderCollateralizedLoan(params.loanId);
 
@@ -297,7 +297,7 @@ library LoanManagerLogic {
         // update the pool
         pool.updatePoolWithBorrow(params.amount, isStableBorrow);
 
-        // check loan is over-collaterised after the borrow
+        // check loan is over-collateralised after the borrow
         if (!userLoan.isLoanOverCollateralized(pools, loanType.pools, oracleManager))
             revert UnderCollateralizedLoan(params.loanId);
 
@@ -518,10 +518,13 @@ library LoanManagerLogic {
     /// @param params The switch borrow type parameters including the loan ID, pool ID and maxStableRate.
     function executeSwitchBorrowType(
         mapping(bytes32 => LoanManagerState.UserLoan) storage userLoans,
+        mapping(uint16 loanTypeId => LoanManagerState.LoanType) storage loanTypes,
         mapping(uint8 => IHubPool) storage pools,
+        IOracleManager oracleManager,
         DataTypes.ExecuteSwitchBorrowTypeParams memory params
     ) external {
         LoanManagerState.UserLoan storage userLoan = userLoans[params.loanId];
+        LoanManagerState.LoanType storage loanType = loanTypes[userLoan.loanTypeId];
 
         // user cannot switch borrow type for borrow which they don't have
         // borrow present iff loan type created and pool added so no need to check this
@@ -552,6 +555,10 @@ library LoanManagerLogic {
 
         // update the pool
         pool.updatePoolWithSwitchBorrowType(loanBorrowAmount, switchingToStable, oldLoanBorrowStableRate);
+
+        // check loan is over-collateralised after the switch
+        if (!userLoan.isLoanOverCollateralized(pools, loanType.pools, oracleManager))
+            revert UnderCollateralizedLoan(params.loanId);
 
         emit SwitchBorrowType(params.loanId, params.poolId);
     }
