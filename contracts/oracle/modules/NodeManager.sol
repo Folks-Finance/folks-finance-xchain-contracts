@@ -49,7 +49,7 @@ contract NodeManager is INodeManager {
     /// @param interfaceId The ID of the interface to check.
     /// @return A boolean indicating whether the contract supports the interface.
     function supportsInterface(bytes4 interfaceId) external pure override returns (bool) {
-        return interfaceId == type(INodeManager).interfaceId;
+        return interfaceId == type(IERC165).interfaceId || interfaceId == type(INodeManager).interfaceId;
     }
 
     /// @notice Gets the ID of a node from its node definition: node type, parameters, parents.

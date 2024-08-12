@@ -1,21 +1,23 @@
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
+import { Signer } from "ethers";
 import { ethers } from "hardhat";
+import { MockNodeManager__factory, NodeManager, NodeManager__factory } from "../../../typechain-types";
 import NodeType from "../assets/NodeType";
 import { abi, getOracleNodeId } from "../utils/utils";
-import { NodeManager } from "../../../typechain-types";
 
 async function deployNodeManagerFixture() {
-  const NodeManager = await ethers.getContractFactory("NodeManager");
-  const nodeManager = await NodeManager.deploy();
-  return { nodeManager };
+  const [user] = await ethers.getSigners();
+  const nodeManager = await new NodeManager__factory(user).deploy();
+  return { user, nodeManager };
 }
 
 describe("NodeManager", async function () {
   let nodeManager: NodeManager;
+  let user: Signer;
 
   beforeEach("Deploy NodeManager contract", async function () {
-    ({ nodeManager } = await loadFixture(deployNodeManagerFixture));
+    ({ user, nodeManager } = await loadFixture(deployNodeManagerFixture));
   });
 
   describe("Deployment", async function () {
@@ -59,6 +61,25 @@ describe("NodeManager", async function () {
       await expect(registerNode)
         .to.be.revertedWithCustomError(nodeManager, "NodeNotRegistered")
         .withArgs(parentOneNodeId);
+    });
+  });
+
+  describe("SupportsInterface", function () {
+    let IERC165Interface: string;
+    let INodeManagerInterface: string;
+
+    before("Deploy NodeManager Mock contract and get interfaces", async function () {
+      const nodeManagerMock = await new MockNodeManager__factory(user).deploy();
+      IERC165Interface = await nodeManagerMock.getINodeManagerInterface();
+      INodeManagerInterface = await nodeManagerMock.getERC165Selector();
+    });
+
+    it("Should support ERC165 interface", async function () {
+      expect(await nodeManager.supportsInterface(IERC165Interface)).to.be.true;
+    });
+
+    it("Should support INodeManager interface", async function () {
+      expect(await nodeManager.supportsInterface(INodeManagerInterface)).to.be.true;
     });
   });
 });
