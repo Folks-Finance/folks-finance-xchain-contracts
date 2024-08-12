@@ -41,6 +41,10 @@ contract MockChainlinkAggregator is AggregatorV3Interface {
         override
         returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)
     {
+        // revert as if the roundId is not valid
+        if (_prices[roundId_ - 1] == 0) {
+            revert();
+        }
         return (roundId_, _prices[roundId_ - 1], 0, _updatedAt[roundId_ - 1], roundId);
     }
 
@@ -51,5 +55,9 @@ contract MockChainlinkAggregator is AggregatorV3Interface {
         returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)
     {
         return (_roundId, _prices[_roundId - 1], 0, _updatedAt[_roundId - 1], roundId);
+    }
+
+    function setPrice(int256 price, uint256 index) external {
+        _prices[index] = price;
     }
 }

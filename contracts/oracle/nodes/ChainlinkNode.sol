@@ -70,7 +70,9 @@ library ChainlinkNode {
                 priceSum += answer.toUint256();
                 priceCount++;
             } catch {
-                break;
+                if (latestRoundId == 0) {
+                    break;
+                }
             }
         }
 
