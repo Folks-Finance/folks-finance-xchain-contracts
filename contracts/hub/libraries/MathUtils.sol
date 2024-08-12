@@ -519,8 +519,8 @@ library MathUtils {
         return
             Math.mulDiv(
                 convertAssetAmount(collAmount, collPrice, collDecimals, borrPrice, borrDecimals),
-                (MathUtils.ONE_4_DP + liquidationBonus),
-                MathUtils.ONE_4_DP
+                MathUtils.ONE_4_DP,
+                (MathUtils.ONE_4_DP + liquidationBonus)
             );
     }
 
