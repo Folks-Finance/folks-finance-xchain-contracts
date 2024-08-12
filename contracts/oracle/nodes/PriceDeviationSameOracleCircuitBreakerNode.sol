@@ -15,6 +15,8 @@ library PriceDeviationSameOracleCircuitBreakerNode {
     error DeviationToleranceExceeded(uint256 deviation);
     /// @dev Error to be thrown when the two parents have the same type.
     error SameOracle(NodeDefinition.NodeType nodeType);
+    /// @dev Error to be thrown when the price of first node is zero.
+    error ZeroPrice(NodeDefinition.NodeType nodeType);
 
     /// @notice Checks if the price deviation is within the tolerance and the nodes' type are different and returns the first parent node output or if provided the fallback node output else reverts.
     /// @param parentNodeOutputs The outputs of the parent nodes, the first two are the price and the comparison price, the third is the fallback node output.
@@ -23,20 +25,24 @@ library PriceDeviationSameOracleCircuitBreakerNode {
     function process(
         NodeOutput.Data[] memory parentNodeOutputs,
         bytes memory parameters
-    ) internal pure returns (NodeOutput.Data memory nodeOutput) {
+    ) internal pure returns (NodeOutput.Data memory) {
         uint256 deviationTolerance = abi.decode(parameters, (uint256));
 
         uint256 price = parentNodeOutputs[0].price;
         uint256 comparisonPrice = parentNodeOutputs[1].price;
 
         uint256 difference = price > comparisonPrice ? price - comparisonPrice : comparisonPrice - price;
-        uint256 percentageDifference = difference.mulDiv(WAD, price);
+        uint256 parentNodesLength = parentNodeOutputs.length;
+        bool priceIsZero = price == 0;
 
-        if (parentNodeOutputs.length == 2 && parentNodeOutputs[0].nodeType == parentNodeOutputs[1].nodeType) {
-            revert SameOracle(parentNodeOutputs[0].nodeType);
+        if (priceIsZero || difference.mulDiv(WAD, price) > deviationTolerance) {
+            if (parentNodesLength > 2) return parentNodeOutputs[2];
+            if (priceIsZero) revert ZeroPrice(parentNodeOutputs[0].nodeType);
+            revert DeviationToleranceExceeded(difference.mulDiv(WAD, price));
         }
-        if (percentageDifference > deviationTolerance) {
-            if (parentNodeOutputs.length == 2) revert DeviationToleranceExceeded(percentageDifference);
+
+        if (parentNodeOutputs[0].nodeType == parentNodeOutputs[1].nodeType) {
+            if (parentNodesLength == 2) revert SameOracle(parentNodeOutputs[0].nodeType);
             return parentNodeOutputs[2];
         }
 

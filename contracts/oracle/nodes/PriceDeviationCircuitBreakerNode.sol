@@ -13,6 +13,8 @@ library PriceDeviationCircuitBreakerNode {
 
     /// @dev Error to be thrown when the deviation tolerance is exceeded.
     error DeviationToleranceExceeded(uint256 deviation);
+    /// @dev Error to be thrown when the price of first node is zero.
+    error ZeroPrice(NodeDefinition.NodeType nodeType);
 
     /// @notice Checks if the price deviation is within the tolerance and returns the first parent node output or if provided the fallback node output else reverts.
     /// @param parentNodeOutputs The outputs of the parent nodes, the first two are the price and the comparison price, the third is the fallback node output.
@@ -21,18 +23,19 @@ library PriceDeviationCircuitBreakerNode {
     function process(
         NodeOutput.Data[] memory parentNodeOutputs,
         bytes memory parameters
-    ) internal pure returns (NodeOutput.Data memory nodeOutput) {
+    ) internal pure returns (NodeOutput.Data memory) {
         uint256 deviationTolerance = abi.decode(parameters, (uint256));
 
         uint256 price = parentNodeOutputs[0].price;
         uint256 comparisonPrice = parentNodeOutputs[1].price;
 
         uint256 difference = price > comparisonPrice ? price - comparisonPrice : comparisonPrice - price;
-        uint256 percentageDifference = difference.mulDiv(WAD, price);
+        bool priceIsZero = price == 0;
 
-        if (percentageDifference > deviationTolerance) {
-            if (parentNodeOutputs.length == 2) revert DeviationToleranceExceeded(percentageDifference);
-            return parentNodeOutputs[2];
+        if (priceIsZero || difference.mulDiv(WAD, price) > deviationTolerance) {
+            if (parentNodeOutputs.length > 2) return parentNodeOutputs[2];
+            if (priceIsZero) revert ZeroPrice(parentNodeOutputs[0].nodeType);
+            revert DeviationToleranceExceeded(difference.mulDiv(WAD, price));
         }
 
         return parentNodeOutputs[0];
