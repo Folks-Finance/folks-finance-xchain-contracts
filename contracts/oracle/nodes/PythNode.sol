@@ -42,7 +42,7 @@ library PythNode {
     /// @param nodeDefinition The node definition to check.
     /// @return valid A boolean indicating whether the node definition is valid.
     function isValid(NodeDefinition.Data memory nodeDefinition) internal view returns (bool valid) {
-        /// @dev Must have parents and three parameters: contract pythAddress, priceFeedId, useEma
+        /// @dev Must have no parents and three parameters: contract pythAddress, priceFeedId, useEma
         if (nodeDefinition.parents.length > 0 || nodeDefinition.parameters.length != 32 * 3) {
             return false;
         }
