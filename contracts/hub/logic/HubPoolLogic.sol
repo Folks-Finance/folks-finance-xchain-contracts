@@ -424,7 +424,7 @@ library HubPoolLogic {
             MathUtils.calcOverallBorrowInterestRate(
                 poolAmountDataCache.variableBorrowTotalAmount,
                 poolAmountDataCache.stableBorrowTotalAmount,
-                poolData.variableBorrowData.interestRate,
+                variableBorrowInterestRate,
                 poolData.stableBorrowData.averageInterestRate
             ),
             poolData.feeData.retentionRate

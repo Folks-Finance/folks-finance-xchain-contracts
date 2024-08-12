@@ -242,9 +242,9 @@ describe("MathUtils", async function () {
           );
 
           const depositInterestRateGT = calcDepositInterestRate(
+            utilizationRatio,
             overallBorrowInterestRateGT,
-            poolDataMock.feeData.retentionRate,
-            utilizationRatio
+            poolDataMock.feeData.retentionRate
           );
 
           const depositInterestRate = await mockMathUtilsConsumer.calcDepositInterestRate(

@@ -6,8 +6,9 @@ import {
   HubPoolLogic__factory,
   HubPoolLogged__factory,
   MockOracleManager__factory,
+  HubMockPool,
 } from "../../typechain-types";
-import { getInitialPoolData } from "./libraries/assets/poolData";
+import { getInitialPoolData, PoolData } from "./libraries/assets/poolData";
 import {
   BYTES32_LENGTH,
   UINT256_LENGTH,
@@ -26,11 +27,17 @@ import {
   calcBorrowInterestIndex,
   calcDecreasingAverageStableBorrowInterestRate,
   calcDepositInterestIndex,
+  calcDepositInterestRate,
   calcFlashLoanFeeAmount,
   calcIncreasingAverageStableBorrowInterestRate,
+  calcOverallBorrowInterestRate,
   calcRebalanceDownThreshold,
   calcRebalanceUpThreshold,
+  calcStableBorrowInterestRate,
+  calcStableDebtToTotalDebtRatio,
+  calcTotalDebt,
   calcUtilisationRatio,
+  calcVariableBorrowInterestRate,
   toFAmount,
   toUnderlingAmount,
 } from "./utils/formulae";
@@ -44,6 +51,25 @@ describe("HubPool (unit tests)", () => {
   const LOAN_MANAGER_ROLE = ethers.keccak256(convertStringToBytes("LOAN_MANAGER"));
 
   const ethDecimals = 18;
+
+  const verifyInterestRates = async (hubPool: HubMockPool) => {
+    const [, rr] = await hubPool.getFeeData();
+    const [our, dta, dir] = await hubPool.getDepositData();
+    const [vr0, vr1, vr2, vbta, vbir] = await hubPool.getVariableBorrowData();
+    const [sr0, sr1, sr2, sr3, osttdr, , , , sbta, sbir, asbir] = await hubPool.getStableBorrowData();
+
+    const td = calcTotalDebt(vbta, sbta);
+    const ur = calcUtilisationRatio(td, dta);
+    const variableBorrowInterestRate = calcVariableBorrowInterestRate(vr0, vr1, vr2, ur, our);
+    const sdttdr = calcStableDebtToTotalDebtRatio(sbta, td);
+    const stableBorrowInterestRate = calcStableBorrowInterestRate(vr1, sr0, sr1, sr2, sr3, ur, our, sdttdr, osttdr);
+    const obir = calcOverallBorrowInterestRate(vbta, sbta, variableBorrowInterestRate, asbir);
+    const depositInterestRate = calcDepositInterestRate(ur, obir, rr);
+
+    expect(vbir).to.equal(variableBorrowInterestRate);
+    expect(sbir).to.equal(stableBorrowInterestRate);
+    expect(dir).to.equal(depositInterestRate);
+  };
 
   async function deployHubPoolFixture() {
     const [admin, hub, loanManager, user, ...unusedUsers] = await ethers.getSigners();
@@ -464,6 +490,7 @@ describe("HubPool (unit tests)", () => {
           depositInterestIndex,
           [ethNodeOutputData.price, ethDecimals],
         ]);
+      await verifyInterestRates(hubPool);
     });
 
     it("Should fail to update pool with deposit when pool is deprecated", async () => {
@@ -549,6 +576,7 @@ describe("HubPool (unit tests)", () => {
       await expect(updatePoolWithWithdraw).to.emit(hubPool, "InterestIndexesUpdated");
       await expect(updatePoolWithWithdraw).to.emit(hubPool, "InterestRatesUpdated");
       await expect(updatePoolWithWithdraw).to.emit(loanManager, "WithdrawPoolParams").withArgs([amount, fAmount]);
+      await verifyInterestRates(hubPool);
     });
 
     it("Should successfully update pool with withdraw when 1 amount", async () => {
@@ -577,6 +605,7 @@ describe("HubPool (unit tests)", () => {
       await expect(updatePoolWithWithdraw).to.emit(hubPool, "InterestIndexesUpdated");
       await expect(updatePoolWithWithdraw).to.emit(hubPool, "InterestRatesUpdated");
       await expect(updatePoolWithWithdraw).to.emit(loanManager, "WithdrawPoolParams").withArgs([amount, fAmount]);
+      await verifyInterestRates(hubPool);
     });
 
     it("Should successfully update pool with withdraw when is f amount", async () => {
@@ -607,6 +636,7 @@ describe("HubPool (unit tests)", () => {
       await expect(updatePoolWithWithdraw)
         .to.emit(loanManager, "WithdrawPoolParams")
         .withArgs([underlingAmount, amount]);
+      await verifyInterestRates(hubPool);
     });
 
     it("Should successfully update pool with withdraw when 1 f amount", async () => {
@@ -637,6 +667,7 @@ describe("HubPool (unit tests)", () => {
       await expect(updatePoolWithWithdraw)
         .to.emit(loanManager, "WithdrawPoolParams")
         .withArgs([underlingAmount, amount]);
+      await verifyInterestRates(hubPool);
     });
 
     it("Should fail to update pool with withdraw when sender is not loan manager", async () => {
@@ -995,6 +1026,7 @@ describe("HubPool (unit tests)", () => {
       const updatePoolWithBorrow = await hubPool.connect(loanManager).updatePoolWithBorrow(amount, isStable);
       expect((await hubPool.getVariableBorrowData())[3]).to.equal(poolData.variableBorrowData.totalAmount + amount);
       await expect(updatePoolWithBorrow).to.emit(hubPool, "InterestRatesUpdated");
+      await verifyInterestRates(hubPool);
     });
 
     it("Should successfully update pool with stable borrow", async () => {
@@ -1027,6 +1059,7 @@ describe("HubPool (unit tests)", () => {
       expect((await hubPool.getStableBorrowData())[8]).to.equal(poolData.stableBorrowData.totalAmount + amount);
       expect((await hubPool.getStableBorrowData())[10]).to.equal(newStableAverageInterestRate);
       await expect(updatePoolWithBorrow).to.emit(hubPool, "InterestRatesUpdated");
+      await verifyInterestRates(hubPool);
     });
 
     it("Should fail to update pool with borrow when sender is not loan manager", async () => {
@@ -1119,6 +1152,7 @@ describe("HubPool (unit tests)", () => {
       expect((await hubPool.getFeeData())[4]).to.equal(feeTotalRetainedAmount + excessAmount);
       expect((await hubPool.getDepositData())[1]).to.equal(depositTotalAmount + interestPaid);
       await expect(updatePoolWithRepay).to.emit(hubPool, "InterestRatesUpdated");
+      await verifyInterestRates(hubPool);
     });
 
     it("Should successfully update pool with repay of stable borrow", async () => {
@@ -1159,6 +1193,7 @@ describe("HubPool (unit tests)", () => {
       expect((await hubPool.getFeeData())[4]).to.equal(feeTotalRetainedAmount + excessAmount);
       expect((await hubPool.getDepositData())[1]).to.equal(depositTotalAmount + interestPaid);
       await expect(updatePoolWithRepay).to.emit(hubPool, "InterestRatesUpdated");
+      await verifyInterestRates(hubPool);
     });
 
     it("Should handle underflow of stable average interest rate", async () => {
@@ -1199,6 +1234,7 @@ describe("HubPool (unit tests)", () => {
       expect((await hubPool.getFeeData())[4]).to.equal(feeTotalRetainedAmount + excessAmount);
       expect((await hubPool.getDepositData())[1]).to.equal(depositTotalAmount + interestPaid);
       await expect(updatePoolWithRepay).to.emit(hubPool, "InterestRatesUpdated");
+      await verifyInterestRates(hubPool);
     });
 
     it("Should fail to update pool with repay when sender is not loan manager", async () => {
@@ -1255,6 +1291,7 @@ describe("HubPool (unit tests)", () => {
       await expect(updatePoolWithRepayWithCollateral)
         .to.emit(loanManager, "RepayWithCollateralPoolParams")
         .withArgs([toFAmount(principalPaid + interestPaid, depositInterestIndex, true)]);
+      await verifyInterestRates(hubPool);
     });
 
     it("Should successfully update pool with repay with collateral of stable borrow", async () => {
@@ -1304,6 +1341,7 @@ describe("HubPool (unit tests)", () => {
       await expect(updatePoolWithRepayWithCollateral)
         .to.emit(loanManager, "RepayWithCollateralPoolParams")
         .withArgs([toFAmount(principalPaid + interestPaid, depositInterestIndex, true)]);
+      await verifyInterestRates(hubPool);
     });
 
     it("Should successfully update pool with repay with collateral when 1 amount", async () => {
@@ -1342,6 +1380,7 @@ describe("HubPool (unit tests)", () => {
       await expect(updatePoolWithRepayWithCollateral)
         .to.emit(loanManager, "RepayWithCollateralPoolParams")
         .withArgs([BigInt(1)]);
+      await verifyInterestRates(hubPool);
     });
 
     it("Should fail to update pool with repay with collateral when sender is not loan manager", async () => {
@@ -1367,6 +1406,7 @@ describe("HubPool (unit tests)", () => {
       // update pool with liquidation
       const updatePoolWithLiquidation = await hubPool.connect(loanManager).updatePoolWithLiquidation();
       await expect(updatePoolWithLiquidation).to.emit(hubPool, "InterestRatesUpdated");
+      await verifyInterestRates(hubPool);
     });
 
     it("Should fail to update pool with liquidation when sender is not loan manager", async () => {
@@ -1620,6 +1660,7 @@ describe("HubPool (unit tests)", () => {
       );
       expect((await hubPool.getStableBorrowData())[10]).to.equal(newStableAverageInterestRate);
       await expect(updatePoolWithSwitchBorrowType).to.emit(hubPool, "InterestRatesUpdated");
+      await verifyInterestRates(hubPool);
     });
 
     it("Should handle div by zero when no stable remaining", async () => {
@@ -1653,6 +1694,7 @@ describe("HubPool (unit tests)", () => {
       expect((await hubPool.getStableBorrowData())[8]).to.equal(BigInt(0));
       expect((await hubPool.getStableBorrowData())[10]).to.equal(newStableAverageInterestRate);
       await expect(updatePoolWithSwitchBorrowType).to.emit(hubPool, "InterestRatesUpdated");
+      await verifyInterestRates(hubPool);
     });
 
     it("Should successfully update pool with switch borrow type from variable to stable", async () => {
@@ -1693,6 +1735,7 @@ describe("HubPool (unit tests)", () => {
       );
       expect((await hubPool.getStableBorrowData())[10]).to.equal(newStableAverageInterestRate);
       await expect(updatePoolWithSwitchBorrowType).to.emit(hubPool, "InterestRatesUpdated");
+      await verifyInterestRates(hubPool);
     });
 
     it("Should fail to update pool with switch borrow type when sender is not loan manager", async () => {
@@ -1870,6 +1913,7 @@ describe("HubPool (unit tests)", () => {
       expect((await hubPool.getStableBorrowData())[8]).to.equal(poolData.stableBorrowData.totalAmount);
       expect((await hubPool.getStableBorrowData())[10]).to.equal(newStableAverageInterestRate);
       await expect(updatePoolWithRebalanceUp).to.emit(hubPool, "InterestRatesUpdated");
+      await verifyInterestRates(hubPool);
     });
 
     it("Should fail to update pool with rebalance up when sender is not loan manager", async () => {
@@ -1986,6 +2030,7 @@ describe("HubPool (unit tests)", () => {
       expect((await hubPool.getStableBorrowData())[8]).to.equal(poolData.stableBorrowData.totalAmount);
       expect((await hubPool.getStableBorrowData())[10]).to.equal(newStableAverageInterestRate);
       await expect(updatePoolWithRebalanceDown).to.emit(hubPool, "InterestRatesUpdated");
+      await verifyInterestRates(hubPool);
     });
 
     it("Should fail to update pool with rebalance down when sender is not loan manager", async () => {

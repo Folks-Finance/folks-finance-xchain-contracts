@@ -196,7 +196,13 @@ function calcOverallBorrowInterestRate(
   avgsbirt: bigint
 ): bigint {
   const totalDebt = calcTotalDebt(totalVarDebt, totalStblDebt);
-  return totalDebt > 0 ? (totalVarDebt * vbirt + totalStblDebt * avgsbirt) / totalDebt : 0n;
+  return totalDebt > 0
+    ? mulScale(
+        mulScale(totalVarDebt, vbirt, ONE_18_DP) + mulScale(totalStblDebt, avgsbirt, ONE_18_DP),
+        ONE_18_DP,
+        totalDebt
+      )
+    : 0n;
 }
 
 /**
@@ -206,7 +212,7 @@ function calcOverallBorrowInterestRate(
  * @param rr (18dp)
  * @return overallBorrowInterestRate (18dp)
  */
-function calcDepositInterestRate(obirt: bigint, rr: bigint, ut: bigint): bigint {
+function calcDepositInterestRate(ut: bigint, obirt: bigint, rr: bigint): bigint {
   return mulScale(mulScale(ut, obirt, ONE_18_DP), ONE_6_DP - rr, ONE_6_DP);
 }
 
