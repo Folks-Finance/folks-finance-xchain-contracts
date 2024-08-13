@@ -20,7 +20,8 @@ contract MockHubPool is IHubPool, ERC20 {
     );
     event UpdateInterestIndexes();
     event UpdatePoolWithDeposit(uint256 amount);
-    event UpdatePoolWithWithdraw(uint256 amount, bool isFAmount);
+    event PreparePoolForWithdraw(uint256 amount, bool isFAmount);
+    event UpdatePoolWithWithdraw(uint256 underlyingAmount);
     event PreparePoolForWithdrawFToken();
     event PreparePoolForBorrow(uint256 amount, uint256 maxStableRate);
     event UpdatePoolWithBorrow(uint256 amount, bool isStable);
@@ -173,12 +174,16 @@ contract MockHubPool is IHubPool, ERC20 {
         return _depositPoolParams;
     }
 
-    function updatePoolWithWithdraw(
+    function preparePoolForWithdraw(
         uint256 amount,
         bool isFAmount
     ) external override returns (DataTypes.WithdrawPoolParams memory) {
-        emit UpdatePoolWithWithdraw(amount, isFAmount);
+        emit PreparePoolForWithdraw(amount, isFAmount);
         return _withdrawPoolParams;
+    }
+
+    function updatePoolWithWithdraw(uint256 underlyingAmount) external override {
+        emit UpdatePoolWithWithdraw(underlyingAmount);
     }
 
     function preparePoolForWithdrawFToken() external override {

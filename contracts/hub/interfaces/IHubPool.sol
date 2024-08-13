@@ -37,10 +37,11 @@ interface IHubPool is IERC20 {
     function updatePoolWithDeposit(
         uint256 amount
     ) external returns (DataTypes.DepositPoolParams memory depositPoolParams);
-    function updatePoolWithWithdraw(
+    function preparePoolForWithdraw(
         uint256 amount,
         bool isFAmount
-    ) external returns (DataTypes.WithdrawPoolParams memory);
+    ) external returns (DataTypes.WithdrawPoolParams memory withdrawPoolParams);
+    function updatePoolWithWithdraw(uint256 underlyingAmount) external;
     function preparePoolForWithdrawFToken() external;
     function preparePoolForBorrow(
         uint256 amount,

@@ -72,8 +72,8 @@ contract HubPoolLogged {
         emit DepositPoolParams(params);
     }
 
-    function updatePoolWithWithdraw(uint256 amount, bool isFAmount) external {
-        DataTypes.WithdrawPoolParams memory params = pool.updatePoolWithWithdraw(amount, isFAmount);
+    function preparePoolForWithdraw(uint256 amount, bool isFAmount) external {
+        DataTypes.WithdrawPoolParams memory params = pool.preparePoolForWithdraw(amount, isFAmount);
         emit WithdrawPoolParams(params);
     }
 

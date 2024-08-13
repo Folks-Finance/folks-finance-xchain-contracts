@@ -1531,7 +1531,8 @@ describe("LoanManager (unit tests)", () => {
 
       // check events
       const latestBlockTimestamp = await getLatestBlockTimestamp();
-      await expect(withdraw).to.emit(pool, "UpdatePoolWithWithdraw").withArgs(withdrawFAmount, isFAmount);
+      await expect(withdraw).to.emit(pool, "PreparePoolForWithdraw").withArgs(withdrawFAmount, isFAmount);
+      await expect(withdraw).to.emit(pool, "UpdatePoolWithWithdraw").withArgs(withdrawAmount);
       await expect(withdraw).to.emit(loanManager, "RewardIndexesUpdated").withArgs(poolId, 0, 0, latestBlockTimestamp);
       const loanManagerLogic = await ethers.getContractAt("LoanManagerLogic", loanManagerAddress);
       await expect(withdraw)
@@ -1576,7 +1577,8 @@ describe("LoanManager (unit tests)", () => {
 
       // check events
       const latestBlockTimestamp = await getLatestBlockTimestamp();
-      await expect(withdraw).to.emit(pool, "UpdatePoolWithWithdraw").withArgs(withdrawAmount, isFAmount);
+      await expect(withdraw).to.emit(pool, "PreparePoolForWithdraw").withArgs(withdrawFAmount, isFAmount);
+      await expect(withdraw).to.emit(pool, "UpdatePoolWithWithdraw").withArgs(withdrawAmount);
       await expect(withdraw).to.emit(loanManager, "RewardIndexesUpdated").withArgs(poolId, 0, 0, latestBlockTimestamp);
       const loanManagerLogic = await ethers.getContractAt("LoanManagerLogic", loanManagerAddress);
       await expect(withdraw)
