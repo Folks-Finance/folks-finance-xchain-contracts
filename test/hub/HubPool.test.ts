@@ -549,8 +549,8 @@ describe("HubPool (unit tests)", () => {
     });
   });
 
-  describe("Update Pool With Withdraw", () => {
-    it("Should successfully update pool with withdraw when not f amount", async () => {
+  describe("Prepare Pool For Withdraw", () => {
+    it("Should successfully prepare pool for withdraw token when not f amount", async () => {
       const { admin, user, hubPool } = await loadFixture(deployHubPoolFixture);
 
       // deploy mock loan manager so can emit event with params
@@ -570,13 +570,10 @@ describe("HubPool (unit tests)", () => {
       const isFAmount = false;
       const fAmount = toFAmount(amount, depositInterestIndex, true);
 
-      // update pool with withdraw
-      const updatePoolWithWithdraw = await loanManager.updatePoolWithWithdraw(amount, isFAmount);
-      expect((await hubPool.getDepositData())[1]).to.equal(depositTotalAmount - amount);
-      await expect(updatePoolWithWithdraw).to.emit(hubPool, "InterestIndexesUpdated");
-      await expect(updatePoolWithWithdraw).to.emit(hubPool, "InterestRatesUpdated");
-      await expect(updatePoolWithWithdraw).to.emit(loanManager, "WithdrawPoolParams").withArgs([amount, fAmount]);
-      await verifyInterestRates(hubPool);
+      // prepare pool for withdraw
+      const preparePoolForWithdraw = await loanManager.preparePoolForWithdraw(amount, isFAmount);
+      await expect(preparePoolForWithdraw).to.emit(hubPool, "InterestIndexesUpdated");
+      await expect(preparePoolForWithdraw).to.emit(loanManager, "WithdrawPoolParams").withArgs([amount, fAmount]);
     });
 
     it("Should successfully update pool with withdraw when 1 amount", async () => {
@@ -599,16 +596,13 @@ describe("HubPool (unit tests)", () => {
       const isFAmount = false;
       const fAmount = BigInt(1);
 
-      // update pool with withdraw
-      const updatePoolWithWithdraw = await loanManager.updatePoolWithWithdraw(amount, isFAmount);
-      expect((await hubPool.getDepositData())[1]).to.equal(depositTotalAmount - amount);
-      await expect(updatePoolWithWithdraw).to.emit(hubPool, "InterestIndexesUpdated");
-      await expect(updatePoolWithWithdraw).to.emit(hubPool, "InterestRatesUpdated");
-      await expect(updatePoolWithWithdraw).to.emit(loanManager, "WithdrawPoolParams").withArgs([amount, fAmount]);
-      await verifyInterestRates(hubPool);
+      // prepare pool for withdraw
+      const preparePoolForWithdraw = await loanManager.preparePoolForWithdraw(amount, isFAmount);
+      await expect(preparePoolForWithdraw).to.emit(hubPool, "InterestIndexesUpdated");
+      await expect(preparePoolForWithdraw).to.emit(loanManager, "WithdrawPoolParams").withArgs([amount, fAmount]);
     });
 
-    it("Should successfully update pool with withdraw when is f amount", async () => {
+    it("Should successfully prepare pool for withdraw token when is f amount", async () => {
       const { admin, user, hubPool } = await loadFixture(deployHubPoolFixture);
 
       // deploy mock loan manager so can emit event with params
@@ -628,23 +622,59 @@ describe("HubPool (unit tests)", () => {
       const isFAmount = true;
       const underlingAmount = toUnderlingAmount(amount, depositInterestIndex);
 
-      // update pool with withdraw
-      const updatePoolWithWithdraw = await loanManager.updatePoolWithWithdraw(amount, isFAmount);
-      expect((await hubPool.getDepositData())[1]).to.equal(depositTotalAmount - underlingAmount);
-      await expect(updatePoolWithWithdraw).to.emit(hubPool, "InterestIndexesUpdated");
-      await expect(updatePoolWithWithdraw).to.emit(hubPool, "InterestRatesUpdated");
-      await expect(updatePoolWithWithdraw)
+      // prepare pool for withdraw
+      const preparePoolForWithdraw = await loanManager.preparePoolForWithdraw(amount, isFAmount);
+      await expect(preparePoolForWithdraw).to.emit(hubPool, "InterestIndexesUpdated");
+      await expect(preparePoolForWithdraw)
         .to.emit(loanManager, "WithdrawPoolParams")
         .withArgs([underlingAmount, amount]);
-      await verifyInterestRates(hubPool);
     });
 
-    it("Should successfully update pool with withdraw when 1 f amount", async () => {
-      const { admin, user, hubPool } = await loadFixture(deployHubPoolFixture);
+    it("Should fail to prepare pool for withdraw when insufficient liquidity", async () => {
+      const { loanManager, hubPool, hubPoolLogicAddress, oracleManager, poolId } =
+        await loadFixture(deployHubPoolFixture);
 
-      // deploy mock loan manager so can emit event with params
-      const loanManager = await new HubPoolLogged__factory(user).deploy(hubPool);
-      await hubPool.connect(admin).grantRole(LOAN_MANAGER_ROLE, loanManager);
+      // set pool data with deposit and debt data
+      const depositInterestIndex = BigInt(1.839232023893e18);
+      const depositTotalAmount = BigInt(10e18);
+      const variableBorrowTotalAmount = BigInt(5e18);
+      const stableBorrowTotalAmount = BigInt(4e18);
+      const available = depositTotalAmount - (variableBorrowTotalAmount + stableBorrowTotalAmount);
+      const poolData = getInitialPoolData();
+      poolData.depositData.interestIndex = depositInterestIndex;
+      poolData.depositData.totalAmount = depositTotalAmount;
+      poolData.variableBorrowData.totalAmount = variableBorrowTotalAmount;
+      poolData.stableBorrowData.totalAmount = stableBorrowTotalAmount;
+      await hubPool.setPoolData(poolData);
+
+      // prepare pool for withdraw when insufficient liquidity
+      let amount = available + BigInt(1);
+      const isFAmount = false;
+      const preparePoolForWithdraw = hubPool.connect(loanManager).preparePoolForWithdraw(amount, isFAmount);
+      const hubPoolLogic = await ethers.getContractAt("HubPoolLogic", hubPoolLogicAddress);
+      await expect(preparePoolForWithdraw).to.be.revertedWithCustomError(hubPoolLogic, "InsufficientLiquidity");
+
+      // prepare pool for withdraw when liquidity okay
+      amount = available;
+      await hubPool.connect(loanManager).preparePoolForWithdraw(amount, isFAmount);
+    });
+
+    it("Should fail to prepare pool for withdraw when sender is not loan manager", async () => {
+      const { user, hubPool } = await loadFixture(deployHubPoolFixture);
+
+      // update pool with withdraw
+      const amount = BigInt(0.15e18);
+      const isFAmount = false;
+      const updatePoolWithWithdraw = hubPool.connect(user).preparePoolForWithdraw(amount, isFAmount);
+      await expect(updatePoolWithWithdraw)
+        .to.be.revertedWithCustomError(hubPool, "AccessControlUnauthorizedAccount")
+        .withArgs(user.address, LOAN_MANAGER_ROLE);
+    });
+  });
+
+  describe("Update Pool With Withdraw", () => {
+    it("Should successfully update pool with withdraw", async () => {
+      const { loanManager, hubPool } = await loadFixture(deployHubPoolFixture);
 
       // set pool data with deposit interest index and deposit total amount
       const depositInterestIndex = BigInt(1.839232023893e18);
@@ -654,19 +684,11 @@ describe("HubPool (unit tests)", () => {
       poolData.depositData.totalAmount = depositTotalAmount;
       await hubPool.setPoolData(poolData);
 
-      // calculate amounts
-      const amount = BigInt(1);
-      const isFAmount = true;
-      const underlingAmount = BigInt(1);
-
       // update pool with withdraw
-      const updatePoolWithWithdraw = await loanManager.updatePoolWithWithdraw(amount, isFAmount);
-      expect((await hubPool.getDepositData())[1]).to.equal(depositTotalAmount - underlingAmount);
-      await expect(updatePoolWithWithdraw).to.emit(hubPool, "InterestIndexesUpdated");
+      const underlyingAmount = BigInt(0.15e18);
+      const updatePoolWithWithdraw = await hubPool.connect(loanManager).updatePoolWithWithdraw(underlyingAmount);
+      expect((await hubPool.getDepositData())[1]).to.equal(depositTotalAmount - underlyingAmount);
       await expect(updatePoolWithWithdraw).to.emit(hubPool, "InterestRatesUpdated");
-      await expect(updatePoolWithWithdraw)
-        .to.emit(loanManager, "WithdrawPoolParams")
-        .withArgs([underlingAmount, amount]);
       await verifyInterestRates(hubPool);
     });
 
@@ -674,9 +696,8 @@ describe("HubPool (unit tests)", () => {
       const { user, hubPool } = await loadFixture(deployHubPoolFixture);
 
       // update pool with withdraw
-      const amount = BigInt(1);
-      const isFAmount = true;
-      const updatePoolWithWithdraw = hubPool.connect(user).updatePoolWithWithdraw(amount, isFAmount);
+      const underlyingAmount = BigInt(0.15e18);
+      const updatePoolWithWithdraw = hubPool.connect(user).updatePoolWithWithdraw(underlyingAmount);
       await expect(updatePoolWithWithdraw)
         .to.be.revertedWithCustomError(hubPool, "AccessControlUnauthorizedAccount")
         .withArgs(user.address, LOAN_MANAGER_ROLE);

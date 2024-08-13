@@ -174,9 +174,9 @@ library LoanManagerLogic {
         // collateral present iff loan type created and pool added so no need to check this
         if (!userLoan.hasCollateralIn(params.poolId)) revert NoCollateralInLoanForPool(params.loanId, params.poolId);
 
-        // update the pool
+        // pool pre-checks and update interest indexes
         IHubPool pool = pools[params.poolId];
-        DataTypes.WithdrawPoolParams memory withdrawPoolParams = pool.updatePoolWithWithdraw(
+        DataTypes.WithdrawPoolParams memory withdrawPoolParams = pool.preparePoolForWithdraw(
             params.amount,
             params.isFAmount
         );
@@ -187,6 +187,9 @@ library LoanManagerLogic {
         // decrease the user loan collateral and global collateral used for loan type
         userLoan.decreaseCollateral(params.poolId, withdrawPoolParams.fAmount);
         loanPool.decreaseCollateral(withdrawPoolParams.fAmount);
+
+        // update the pool
+        pool.updatePoolWithWithdraw(withdrawPoolParams.underlingAmount);
 
         // if applicable, check loan is over-collateralised after the withdrawal
         if (params.checkOverCollateralization)

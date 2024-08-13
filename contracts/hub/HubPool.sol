@@ -131,14 +131,26 @@ abstract contract HubPool is ReentrancyGuard, IHubPool, HubPoolState, ERC20Flash
         return HubPoolLogic.updateWithDeposit(_poolData, amount, priceFeed);
     }
 
-    function updatePoolWithWithdraw(
+    function preparePoolForWithdraw(
         uint256 amount,
         bool isFAmount
-    ) external override onlyRole(LOAN_MANAGER_ROLE) nonReentrant returns (DataTypes.WithdrawPoolParams memory) {
-        return HubPoolLogic.updateWithWithdraw(_poolData, amount, isFAmount);
+    )
+        external
+        override
+        onlyRole(LOAN_MANAGER_ROLE)
+        nonReentrant
+        returns (DataTypes.WithdrawPoolParams memory withdrawPoolParams)
+    {
+        return HubPoolLogic.prepareForWithdraw(_poolData, amount, isFAmount);
     }
 
-    function preparePoolForWithdrawFToken() external view override onlyRole(LOAN_MANAGER_ROLE) {
+    function updatePoolWithWithdraw(
+        uint256 underlyingAmount
+    ) external override onlyRole(LOAN_MANAGER_ROLE) nonReentrant {
+        return HubPoolLogic.updateWithWithdraw(_poolData, underlyingAmount);
+    }
+
+    function preparePoolForWithdrawFToken() external override onlyRole(LOAN_MANAGER_ROLE) nonReentrant {
         HubPoolLogic.prepareForWithdrawFToken(_poolData);
     }
 

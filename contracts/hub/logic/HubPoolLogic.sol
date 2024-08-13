@@ -54,7 +54,7 @@ library HubPoolLogic {
         pool.updateInterestRates();
     }
 
-    function updateWithWithdraw(
+    function prepareForWithdraw(
         HubPoolState.PoolData storage pool,
         uint256 amount,
         bool isFAmount
@@ -71,7 +71,13 @@ library HubPoolLogic {
             withdrawPoolParams.fAmount = amount.toFAmount(pool.depositData.interestIndex, Math.Rounding.Ceil);
         }
 
-        pool.depositData.totalAmount -= withdrawPoolParams.underlingAmount;
+        uint256 totalDebt = pool.variableBorrowData.totalAmount + pool.stableBorrowData.totalAmount;
+        if (withdrawPoolParams.underlingAmount > pool.depositData.totalAmount - totalDebt)
+            revert InsufficientLiquidity();
+    }
+
+    function updateWithWithdraw(HubPoolState.PoolData storage pool, uint256 underlyingAmount) external {
+        pool.depositData.totalAmount -= underlyingAmount;
         pool.updateInterestRates();
     }
 
