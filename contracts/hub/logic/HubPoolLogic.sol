@@ -72,8 +72,10 @@ library HubPoolLogic {
         }
 
         uint256 totalDebt = pool.variableBorrowData.totalAmount + pool.stableBorrowData.totalAmount;
-        if (withdrawPoolParams.underlingAmount > pool.depositData.totalAmount - totalDebt)
-            revert InsufficientLiquidity();
+        if (
+            withdrawPoolParams.underlingAmount >
+            MathUtils.calcAvailableLiquidity(totalDebt, pool.depositData.totalAmount)
+        ) revert InsufficientLiquidity();
     }
 
     function updateWithWithdraw(HubPoolState.PoolData storage pool, uint256 underlyingAmount) external {
@@ -97,7 +99,8 @@ library HubPoolLogic {
         bool isStable = maxStableRate > 0;
         uint256 stableBorrowInterestRate = pool.stableBorrowData.interestRate;
         uint256 totalDebt = pool.variableBorrowData.totalAmount + pool.stableBorrowData.totalAmount;
-        if (amount > pool.depositData.totalAmount - totalDebt) revert InsufficientLiquidity();
+        if (amount > MathUtils.calcAvailableLiquidity(totalDebt, pool.depositData.totalAmount))
+            revert InsufficientLiquidity();
         if (isStable && !pool.isStableBorrowSupported()) revert StableBorrowNotSupported();
         if (pool.isBorrowCapReached(priceFeed, amount)) revert BorrowCapReached();
         if (isStable && pool.isStableBorrowCapExceeded(amount)) revert StableBorrowPercentageCapExceeded();

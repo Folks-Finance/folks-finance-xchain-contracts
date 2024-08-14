@@ -6,6 +6,21 @@ import "../MathUtils.sol";
 contract MockMathUtilsConsumer {
     using MathUtils for uint256;
 
+    function calcStableBorrowRatio(
+        uint256 stblBorrowAmount,
+        uint256 availableLiquidity
+    ) external pure returns (uint256) {
+        return MathUtils.calcStableBorrowRatio(stblBorrowAmount, availableLiquidity);
+    }
+
+    function calcUtilisationRatio(uint256 totalDebt, uint256 totalDeposits) external pure returns (uint256) {
+        return MathUtils.calcUtilisationRatio(totalDebt, totalDeposits);
+    }
+
+    function calcStableDebtToTotalDebtRatio(uint256 totalStblDebt, uint256 totalDebt) external pure returns (uint256) {
+        return MathUtils.calcStableDebtToTotalDebtRatio(totalStblDebt, totalDebt);
+    }
+
     function calcVariableBorrowInterestRate(
         uint32 vr0,
         uint32 vr1,
@@ -62,14 +77,6 @@ contract MockMathUtilsConsumer {
         uint32 retentionRate
     ) external pure returns (uint256) {
         return MathUtils.calcDepositInterestRate(utilisationRatioAtT, overallBorrowInterestRateAtT, retentionRate);
-    }
-
-    function calcCompoundInterestWithExpBySquaring(
-        uint256 rate,
-        uint256 timeDelta,
-        uint256 scale
-    ) external pure returns (uint256) {
-        return MathUtils.exponentialBySquaring(rate, timeDelta, scale);
     }
 
     function calcBorrowInterestIndex(
