@@ -6,6 +6,8 @@ import "@openzeppelin/contracts/utils/math/Math.sol";
 library MathUtils {
     using Math for uint256;
 
+    error RatioExceedsOne();
+
     uint256 private constant SECONDS_IN_YEAR = 365 days;
     uint256 internal constant ONE_4_DP = 1e4;
     uint256 internal constant ONE_6_DP = 1e6;
@@ -78,6 +80,7 @@ library MathUtils {
         uint256 stblBorrowAmount,
         uint256 availableLiquidity
     ) internal pure returns (uint256) {
+        if (stblBorrowAmount > availableLiquidity) revert RatioExceedsOne();
         return stblBorrowAmount.mulDiv(ONE_18_DP, availableLiquidity);
     }
 
@@ -86,6 +89,7 @@ library MathUtils {
     /// @param totalDeposits The total deposits.
     /// @return 18dp - The utilisation ratio or 0 if total deposits is 0.
     function calcUtilisationRatio(uint256 totalDebt, uint256 totalDeposits) internal pure returns (uint256) {
+        if (totalDebt > totalDeposits) revert RatioExceedsOne();
         return totalDeposits > 0 ? totalDebt.mulDiv(ONE_18_DP, totalDeposits) : 0;
     }
 
@@ -94,6 +98,7 @@ library MathUtils {
     /// @param totalDebt The total debt.
     /// @return 18dp - The ratio of stable debt to total debt or 0 if total debt is 0.
     function calcStableDebtToTotalDebtRatio(uint256 totalStblDebt, uint256 totalDebt) internal pure returns (uint256) {
+        if (totalStblDebt > totalDebt) revert RatioExceedsOne();
         return totalDebt > 0 ? totalStblDebt.mulDiv(ONE_18_DP, totalDebt) : 0;
     }
 

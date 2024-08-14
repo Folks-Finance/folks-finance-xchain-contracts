@@ -1647,11 +1647,13 @@ describe("HubPool (unit tests)", () => {
       const { loanManager, hubPool } = await loadFixture(deployHubPoolFixture);
 
       // set pool data
+      const depositTotalAmount = BigInt(2e18);
       const variableBorrowTotalAmount = BigInt(1.43543539e18);
       const stableBorrowTotalAmount = BigInt(0.3254823e18);
       const stableInterestRate = BigInt(0.1420009e18);
       const stableAverageInterestRate = BigInt(0.19014e18);
       const poolData = getInitialPoolData();
+      poolData.depositData.totalAmount = depositTotalAmount;
       poolData.variableBorrowData.totalAmount = variableBorrowTotalAmount;
       poolData.stableBorrowData.totalAmount = stableBorrowTotalAmount;
       poolData.stableBorrowData.interestRate = stableInterestRate;
@@ -1688,11 +1690,13 @@ describe("HubPool (unit tests)", () => {
       const { loanManager, hubPool } = await loadFixture(deployHubPoolFixture);
 
       // set pool data
+      const depositTotalAmount = BigInt(2e18);
       const variableBorrowTotalAmount = BigInt(1.43543539e18);
       const stableBorrowTotalAmount = BigInt(0.3254823e18);
       const stableInterestRate = BigInt(0.1420009e18);
       const stableAverageInterestRate = BigInt(0.19014e18);
       const poolData = getInitialPoolData();
+      poolData.depositData.totalAmount = depositTotalAmount;
       poolData.variableBorrowData.totalAmount = variableBorrowTotalAmount;
       poolData.stableBorrowData.totalAmount = stableBorrowTotalAmount;
       poolData.stableBorrowData.interestRate = stableInterestRate;
@@ -1722,11 +1726,13 @@ describe("HubPool (unit tests)", () => {
       const { loanManager, hubPool } = await loadFixture(deployHubPoolFixture);
 
       // set pool data
+      const depositTotalAmount = BigInt(2e18);
       const variableBorrowTotalAmount = BigInt(1.43543539e18);
       const stableBorrowTotalAmount = BigInt(0.3254823e18);
       const stableInterestRate = BigInt(0.1420009e18);
       const stableAverageInterestRate = BigInt(0.19014e18);
       const poolData = getInitialPoolData();
+      poolData.depositData.totalAmount = depositTotalAmount;
       poolData.variableBorrowData.totalAmount = variableBorrowTotalAmount;
       poolData.stableBorrowData.totalAmount = stableBorrowTotalAmount;
       poolData.stableBorrowData.interestRate = stableInterestRate;
@@ -1902,10 +1908,12 @@ describe("HubPool (unit tests)", () => {
       const { loanManager, hubPool } = await loadFixture(deployHubPoolFixture);
 
       // set pool data
+      const depositTotalAmount = BigInt(0.5e18);
       const stableBorrowTotalAmount = BigInt(0.3254823e18);
       const stableInterestRate = BigInt(0.1420009e18);
       const stableAverageInterestRate = BigInt(0.19014e18);
       const poolData = getInitialPoolData();
+      poolData.depositData.totalAmount = depositTotalAmount;
       poolData.stableBorrowData.totalAmount = stableBorrowTotalAmount;
       poolData.stableBorrowData.interestRate = stableInterestRate;
       poolData.stableBorrowData.averageInterestRate = stableAverageInterestRate;
@@ -2019,10 +2027,12 @@ describe("HubPool (unit tests)", () => {
       const { loanManager, hubPool } = await loadFixture(deployHubPoolFixture);
 
       // set pool data
+      const depositTotalAmount = BigInt(0.5e18);
       const stableBorrowTotalAmount = BigInt(0.3254823e18);
       const stableInterestRate = BigInt(0.1420009e18);
       const stableAverageInterestRate = BigInt(0.19014e18);
       const poolData = getInitialPoolData();
+      poolData.depositData.totalAmount = depositTotalAmount;
       poolData.stableBorrowData.totalAmount = stableBorrowTotalAmount;
       poolData.stableBorrowData.interestRate = stableInterestRate;
       poolData.stableBorrowData.averageInterestRate = stableAverageInterestRate;
