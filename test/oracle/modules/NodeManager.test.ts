@@ -70,8 +70,8 @@ describe("NodeManager", async function () {
 
     before("Deploy NodeManager Mock contract and get interfaces", async function () {
       const nodeManagerMock = await new MockNodeManager__factory(user).deploy();
-      IERC165Interface = await nodeManagerMock.getINodeManagerInterface();
-      INodeManagerInterface = await nodeManagerMock.getERC165Selector();
+      IERC165Interface = await nodeManagerMock.getERC165Selector();
+      INodeManagerInterface = await nodeManagerMock.getINodeManagerInterface();
     });
 
     it("Should support ERC165 interface", async function () {

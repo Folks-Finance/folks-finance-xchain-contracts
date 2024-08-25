@@ -83,7 +83,7 @@ library ChainlinkNode {
     /// @param nodeDefinition The node definition to check.
     /// @return A boolean indicating whether the node definition is valid.
     function isValid(NodeDefinition.Data memory nodeDefinition) internal view returns (bool) {
-        /// @dev Must have no parents and three parameters: contract address, twapInterval
+        /// @dev Must have no parents and two parameters: contract address, twapInterval
         if (nodeDefinition.parents.length > 0 || nodeDefinition.parameters.length != 32 * 2) {
             return false;
         }

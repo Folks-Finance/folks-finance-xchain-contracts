@@ -30,6 +30,7 @@ contract AccountManager is IAccountManager, AccessControlDefaultAdminRules {
      * @param accountId The account id to create
      * @param chainId The chain id of the sender
      * @param addr The address of the sender
+     * @param nonce The nonce used to generate the account id
      * @param refAccountId The referrer account id (zero bytes if no referrer)
      */
     function createAccount(
