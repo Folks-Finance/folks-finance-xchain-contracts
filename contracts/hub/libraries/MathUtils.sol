@@ -376,7 +376,7 @@ library MathUtils {
 
     /// @dev Calculates the collateral received by the protocol from liquidation.
     /// @param seizedCollateralFAmount The amount of collateral seized from a liquidation.
-    /// @param borrowToCollateralFAmount The liquidaion amount expressed in fAsset.
+    /// @param borrowToCollateralFAmount The liquidation amount expressed in fAsset.
     /// @param liquidationFee 4dp - The liquidation fee.
     /// @return The collateral received by the protocol from liquidation.
     function calcReserveCol(

@@ -64,6 +64,7 @@ library LiquidationLogic {
     /// @notice Updates violator and liquidator loans moving the collateral seized.
     /// @param loansParams LiquidationLoansParams struct including the violator and liquidator loan ids and the pool ids.
     /// @param seizeCollateralFAmount The amount of collateral to seize.
+    /// @param repayBorrowToCollateralFAmount The liquidation amount expressed in fAsset.
     /// @param minSeized The minimum amount to seize acceptable for the liquidator.
     /// @param userLoans The mapping of the loan ID to user loan including loan type, collateral and borrow details.
     /// @param loanTypes The mapping of the type ID to loan types data including a mapping with the pools' details.
@@ -299,8 +300,9 @@ library LiquidationLogic {
     }
 
     /// @dev Calculates the collateral fAmounts to seize: total, reserve and liquidator amounts.
-    /// @param liquidationFee 4dp - The liquidation fee of the collateral.
     /// @param seizeCollateralFAmount The amount of collateral to seize.
+    /// @param repayBorrowToCollateralFAmount The liquidation amount expressed in fAsset.
+    /// @param liquidationFee 4dp - The liquidation fee of the collateral.
     /// @return collateralSeized CollateralSeizedParams struct including the total amount, liquidator amount and reserve amount.
     function calcCollateralSeized(
         uint256 seizeCollateralFAmount,
