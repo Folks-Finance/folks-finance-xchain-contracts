@@ -173,12 +173,15 @@ describe("HubPool (unit tests)", () => {
 
       // set pool data with token fees
       const poolData = getInitialPoolData();
+      const depositTotalAmount = BigInt(100e18);
       const feeTotalRetainedAmount = BigInt(4.15e18);
+      poolData.depositData.totalAmount = depositTotalAmount;
       poolData.feeData.totalRetainedAmount = feeTotalRetainedAmount;
       await hubPool.setPoolData(poolData);
 
       // clear token fees
       const clearTokenFees = await hubPool.connect(hub).clearTokenFees();
+      expect((await hubPool.getDepositData())[1]).to.equal(depositTotalAmount - feeTotalRetainedAmount);
       expect((await hubPool.getFeeData())[4]).to.equal(0);
       await expect(clearTokenFees).to.emit(hubPool, "ClearTokenFees").withArgs(feeTotalRetainedAmount);
     });
@@ -1171,7 +1174,7 @@ describe("HubPool (unit tests)", () => {
         poolData.variableBorrowData.totalAmount - principalPaid
       );
       expect((await hubPool.getFeeData())[4]).to.equal(feeTotalRetainedAmount + excessAmount);
-      expect((await hubPool.getDepositData())[1]).to.equal(depositTotalAmount + interestPaid);
+      expect((await hubPool.getDepositData())[1]).to.equal(depositTotalAmount + interestPaid + excessAmount);
       await expect(updatePoolWithRepay).to.emit(hubPool, "InterestRatesUpdated");
       await verifyInterestRates(hubPool);
     });
@@ -1212,7 +1215,7 @@ describe("HubPool (unit tests)", () => {
       expect((await hubPool.getStableBorrowData())[8]).to.equal(poolData.stableBorrowData.totalAmount - principalPaid);
       expect((await hubPool.getStableBorrowData())[10]).to.equal(newStableAverageInterestRate);
       expect((await hubPool.getFeeData())[4]).to.equal(feeTotalRetainedAmount + excessAmount);
-      expect((await hubPool.getDepositData())[1]).to.equal(depositTotalAmount + interestPaid);
+      expect((await hubPool.getDepositData())[1]).to.equal(depositTotalAmount + interestPaid + excessAmount);
       await expect(updatePoolWithRepay).to.emit(hubPool, "InterestRatesUpdated");
       await verifyInterestRates(hubPool);
     });
