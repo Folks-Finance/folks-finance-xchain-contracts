@@ -173,17 +173,43 @@ describe("HubPool (unit tests)", () => {
 
       // set pool data with token fees
       const poolData = getInitialPoolData();
-      const depositTotalAmount = BigInt(100e18);
+      const depositTotalAmount = BigInt(10e18);
+      const stableBorrowTotalAmount = BigInt(0.5e18);
       const feeTotalRetainedAmount = BigInt(4.15e18);
       poolData.depositData.totalAmount = depositTotalAmount;
+      poolData.stableBorrowData.totalAmount = stableBorrowTotalAmount;
       poolData.feeData.totalRetainedAmount = feeTotalRetainedAmount;
       await hubPool.setPoolData(poolData);
 
       // clear token fees
       const clearTokenFees = await hubPool.connect(hub).clearTokenFees();
+      const hubPoolLogic = await ethers.getContractAt("HubPoolLogic", hubPool);
       expect((await hubPool.getDepositData())[1]).to.equal(depositTotalAmount - feeTotalRetainedAmount);
       expect((await hubPool.getFeeData())[4]).to.equal(0);
-      await expect(clearTokenFees).to.emit(hubPool, "ClearTokenFees").withArgs(feeTotalRetainedAmount);
+      await expect(clearTokenFees).to.emit(hubPoolLogic, "ClearTokenFees").withArgs(feeTotalRetainedAmount);
+      await verifyInterestRates(hubPool);
+    });
+
+    it("Should fail to clear token fees when insufficient liquidity", async () => {
+      const { hub, hubPool, hubPoolLogicAddress } = await loadFixture(deployHubPoolFixture);
+
+      // set pool data with token fees
+      const poolData = getInitialPoolData();
+      const feeTotalRetainedAmount = BigInt(4.15e18);
+      poolData.feeData.totalRetainedAmount = feeTotalRetainedAmount;
+      await hubPool.setPoolData(poolData);
+
+      // clear token fees when insufficient liquidity
+      poolData.depositData.totalAmount = feeTotalRetainedAmount - BigInt(1);
+      await hubPool.setPoolData(poolData);
+      const clearTokenFees = hubPool.connect(hub).clearTokenFees();
+      const hubPoolLogic = await ethers.getContractAt("HubPoolLogic", hubPoolLogicAddress);
+      await expect(clearTokenFees).to.be.revertedWithCustomError(hubPoolLogic, "InsufficientLiquidity");
+
+      // clear token fees when liquidity okay
+      poolData.depositData.totalAmount = feeTotalRetainedAmount;
+      await hubPool.setPoolData(poolData);
+      await hubPool.connect(hub).clearTokenFees();
     });
 
     it("Should fail to clear token fees when sender is not hub", async () => {
@@ -453,10 +479,10 @@ describe("HubPool (unit tests)", () => {
       );
 
       // update interest indexes
-      const updateInderestIndexes = await hubPool.updateInterestIndexes();
+      const updateInterestIndexes = await hubPool.updateInterestIndexes();
       expect((await hubPool.getDepositData())[3]).to.equal(newDepositInterestIndex);
       expect((await hubPool.getVariableBorrowData())[5]).to.equal(newVariableBorrowInterestIndex);
-      await expect(updateInderestIndexes)
+      await expect(updateInterestIndexes)
         .to.emit(hubPool, "InterestIndexesUpdated")
         .withArgs(newVariableBorrowInterestIndex, newDepositInterestIndex, timestamp);
     });
@@ -634,8 +660,7 @@ describe("HubPool (unit tests)", () => {
     });
 
     it("Should fail to prepare pool for withdraw when insufficient liquidity", async () => {
-      const { loanManager, hubPool, hubPoolLogicAddress, oracleManager, poolId } =
-        await loadFixture(deployHubPoolFixture);
+      const { loanManager, hubPool, hubPoolLogicAddress } = await loadFixture(deployHubPoolFixture);
 
       // set pool data with deposit and debt data
       const depositInterestIndex = BigInt(1.839232023893e18);

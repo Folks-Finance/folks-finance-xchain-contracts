@@ -7,8 +7,6 @@ import "../../bridge/libraries/Messages.sol";
 import "../libraries/DataTypes.sol";
 
 interface IHubPool is IERC20 {
-    event ClearTokenFees(uint256 amount);
-
     error UnmatchedChainSpoke(uint16 chainId, bytes32 expected, bytes32 actual);
 
     function HUB_ROLE() external view returns (bytes32);

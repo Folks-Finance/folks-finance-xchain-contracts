@@ -56,12 +56,7 @@ abstract contract HubPool is ReentrancyGuard, IHubPool, HubPoolState, ERC20Flash
     }
 
     function clearTokenFees() external override onlyRole(HUB_ROLE) nonReentrant returns (uint256) {
-        uint256 amount = _poolData.feeData.totalRetainedAmount;
-        _poolData.feeData.totalRetainedAmount = 0;
-        _poolData.depositData.totalAmount -= amount;
-
-        emit ClearTokenFees(amount);
-        return amount;
+        return HubPoolLogic.clearTokenFees(_poolData);
     }
 
     function verifyReceiveToken(uint16 chainId, bytes32 source) external view override {

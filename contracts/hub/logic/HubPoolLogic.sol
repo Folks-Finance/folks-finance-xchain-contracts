@@ -8,6 +8,7 @@ import "../libraries/MathUtils.sol";
 import "../HubPoolState.sol";
 
 library HubPoolLogic {
+    event ClearTokenFees(uint256 amount);
     event InterestIndexesUpdated(
         uint256 variableBorrowInterestIndex,
         uint256 depositInterestIndex,
@@ -340,6 +341,25 @@ library HubPoolLogic {
         pool.stableBorrowData.totalAmount = stableBorrowTotalAmount;
 
         pool.updateInterestRates();
+    }
+
+    function clearTokenFees(HubPoolState.PoolData storage pool) external returns (uint256) {
+        // update interest indexes before the interest rates change
+        pool.updateInterestIndexes();
+
+        // prepare
+        uint256 totalDebt = pool.variableBorrowData.totalAmount + pool.stableBorrowData.totalAmount;
+        uint256 amount = pool.feeData.totalRetainedAmount;
+        if (amount > MathUtils.calcAvailableLiquidity(totalDebt, pool.depositData.totalAmount))
+            revert InsufficientLiquidity();
+
+        // update
+        pool.feeData.totalRetainedAmount = 0;
+        pool.depositData.totalAmount -= amount;
+        pool.updateInterestRates();
+
+        emit ClearTokenFees(amount);
+        return amount;
     }
 
     function getUpdatedDepositInterestIndex(HubPoolState.PoolData storage poolData) external view returns (uint256) {

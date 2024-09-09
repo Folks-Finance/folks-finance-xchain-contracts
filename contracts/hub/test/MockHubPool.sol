@@ -8,6 +8,7 @@ import "../interfaces/IHubPool.sol";
 import "../libraries/DataTypes.sol";
 
 contract MockHubPool is IHubPool, ERC20 {
+    event ClearTokenFees(uint256 amount);
     event VerifyReceiveToken(uint16 chainId, bytes32 source);
     event SendTokenMessage(
         IBridgeRouter bridgeRouter,
