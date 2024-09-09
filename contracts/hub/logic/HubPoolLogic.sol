@@ -156,7 +156,7 @@ library HubPoolLogic {
         } else pool.variableBorrowData.totalAmount -= principalPaid;
 
         pool.feeData.totalRetainedAmount += excessAmount;
-        pool.depositData.totalAmount += interestPaid;
+        pool.depositData.totalAmount += interestPaid + excessAmount;
 
         pool.updateInterestRates();
     }
