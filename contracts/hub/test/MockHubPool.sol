@@ -25,7 +25,13 @@ contract MockHubPool is IHubPool, ERC20 {
     event UpdatePoolWithWithdraw(uint256 underlyingAmount);
     event PreparePoolForWithdrawFToken();
     event PreparePoolForBorrow(uint256 amount, uint256 maxStableRate);
-    event UpdatePoolWithBorrow(uint256 amount, bool isStable);
+    event UpdatePoolWithBorrow(
+        uint256 oldBorrowAmount,
+        uint256 additionalBorrowAmount,
+        uint256 oldBorrowStableRate,
+        uint256 newBorrowStableRate,
+        bool isStable
+    );
     event PreparePoolForRepay();
     event UpdatePoolWithRepay(
         uint256 principalPaid,
@@ -35,13 +41,18 @@ contract MockHubPool is IHubPool, ERC20 {
     );
     event PreparePoolForRepayWithCollateral();
     event UpdatePoolWithRepayWithCollateral(uint256 principalPaid, uint256 interestPaid, uint256 loanStableRate);
-    event UpdatePoolWithLiquidation();
+    event UpdatePoolWithLiquidation(
+        uint256 repaidBorrowAmount,
+        uint256 violatorLoanStableRate,
+        uint256 liquidatorOldBorrowAmount,
+        uint256 liquidatorOldLoanStableRate,
+        uint256 liquidatorNewLoanStableRate
+    );
     event PreparePoolForSwitchBorrowType(uint256 amount, uint256 maxStableRate);
     event UpdatePoolWithSwitchBorrowType(uint256 loanBorrowAmount, bool switchingToStable, uint256 loanStableRate);
     event PreparePoolForRebalanceUp();
-    event UpdatePoolWithRebalanceUp(uint256 amount, uint256 oldLoanStableInterestRate);
     event PreparePoolForRebalanceDown();
-    event UpdatePoolWithRebalanceDown(uint256 amount, uint256 oldLoanStableInterestRate);
+    event UpdatePoolWithRebalance(uint256 amount, uint256 oldLoanStableInterestRate);
     event MintFTokenForFeeRecipient(uint256 amount);
     event MintFToken(address recipient, uint256 amount);
     event BurnFToken(address sender, uint256 amount);
@@ -199,8 +210,20 @@ contract MockHubPool is IHubPool, ERC20 {
         return _borrowPoolParams;
     }
 
-    function updatePoolWithBorrow(uint256 amount, bool isStable) external override {
-        emit UpdatePoolWithBorrow(amount, isStable);
+    function updatePoolWithBorrow(
+        uint256 oldBorrowAmount,
+        uint256 additionalBorrowAmount,
+        uint256 oldBorrowStableRate,
+        uint256 newBorrowStableRate,
+        bool isStable
+    ) external override {
+        emit UpdatePoolWithBorrow(
+            oldBorrowAmount,
+            additionalBorrowAmount,
+            oldBorrowStableRate,
+            newBorrowStableRate,
+            isStable
+        );
     }
 
     function preparePoolForRepay() external returns (DataTypes.BorrowPoolParams memory) {
@@ -226,8 +249,20 @@ contract MockHubPool is IHubPool, ERC20 {
         return _repayWithCollateralPoolParams;
     }
 
-    function updatePoolWithLiquidation() external override {
-        emit UpdatePoolWithLiquidation();
+    function updatePoolWithLiquidation(
+        uint256 repaidBorrowAmount,
+        uint256 violatorLoanStableRate,
+        uint256 liquidatorOldBorrowAmount,
+        uint256 liquidatorOldLoanStableRate,
+        uint256 liquidatorNewLoanStableRate
+    ) external override {
+        emit UpdatePoolWithLiquidation(
+            repaidBorrowAmount,
+            violatorLoanStableRate,
+            liquidatorOldBorrowAmount,
+            liquidatorOldLoanStableRate,
+            liquidatorNewLoanStableRate
+        );
     }
 
     function preparePoolForSwitchBorrowType(
@@ -251,17 +286,13 @@ contract MockHubPool is IHubPool, ERC20 {
         return _borrowPoolParams;
     }
 
-    function updatePoolWithRebalanceUp(uint256 amount, uint256 oldLoanStableInterestRate) external override {
-        emit UpdatePoolWithRebalanceUp(amount, oldLoanStableInterestRate);
-    }
-
     function preparePoolForRebalanceDown() external override returns (DataTypes.RebalanceDownPoolParams memory) {
         emit PreparePoolForRebalanceDown();
         return _rebalanceDownPoolParams;
     }
 
-    function updatePoolWithRebalanceDown(uint256 amount, uint256 oldLoanStableInterestRate) external override {
-        emit UpdatePoolWithRebalanceDown(amount, oldLoanStableInterestRate);
+    function updatePoolWithRebalance(uint256 amount, uint256 oldLoanStableInterestRate) external override {
+        emit UpdatePoolWithRebalance(amount, oldLoanStableInterestRate);
     }
 
     function mintFTokenForFeeRecipient(uint256 amount) external override {

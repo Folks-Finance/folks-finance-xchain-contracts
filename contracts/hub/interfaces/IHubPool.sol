@@ -45,7 +45,13 @@ interface IHubPool is IERC20 {
         uint256 amount,
         uint256 maxStableRate
     ) external returns (DataTypes.BorrowPoolParams memory borrowPoolParams);
-    function updatePoolWithBorrow(uint256 amount, bool isStable) external;
+    function updatePoolWithBorrow(
+        uint256 oldBorrowAmount,
+        uint256 additionalBorrowAmount,
+        uint256 oldBorrowStableRate,
+        uint256 newBorrowStableRate,
+        bool isStable
+    ) external;
     function preparePoolForRepay() external returns (DataTypes.BorrowPoolParams memory borrowPoolParams);
     function updatePoolWithRepay(
         uint256 principalPaid,
@@ -58,7 +64,13 @@ interface IHubPool is IERC20 {
         uint256 interestPaid,
         uint256 loanStableRate
     ) external returns (DataTypes.RepayWithCollateralPoolParams memory repayWithCollateralPoolParams);
-    function updatePoolWithLiquidation() external;
+    function updatePoolWithLiquidation(
+        uint256 repaidBorrowAmount,
+        uint256 violatorLoanStableRate,
+        uint256 liquidatorOldBorrowAmount,
+        uint256 liquidatorOldLoanStableRate,
+        uint256 liquidatorNewLoanStableRate
+    ) external;
     function preparePoolForSwitchBorrowType(
         uint256 amount,
         uint256 maxStableRate
@@ -69,11 +81,10 @@ interface IHubPool is IERC20 {
         uint256 oldLoanBorrowStableRate
     ) external;
     function preparePoolForRebalanceUp() external returns (DataTypes.BorrowPoolParams memory borrowPoolParams);
-    function updatePoolWithRebalanceUp(uint256 amount, uint256 oldLoanStableInterestRate) external;
     function preparePoolForRebalanceDown()
         external
         returns (DataTypes.RebalanceDownPoolParams memory rebalanceDownPoolParams);
-    function updatePoolWithRebalanceDown(uint256 amount, uint256 oldLoanStableInterestRate) external;
+    function updatePoolWithRebalance(uint256 amount, uint256 oldLoanStableInterestRate) external;
 
     function mintFTokenForFeeRecipient(uint256 amount) external;
     function mintFToken(address recipient, uint256 amount) external;

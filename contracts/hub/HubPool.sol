@@ -165,10 +165,20 @@ abstract contract HubPool is ReentrancyGuard, IHubPool, HubPoolState, ERC20Flash
     }
 
     function updatePoolWithBorrow(
-        uint256 amount,
+        uint256 oldBorrowAmount,
+        uint256 additionalBorrowAmount,
+        uint256 oldBorrowStableRate,
+        uint256 newBorrowStableRate,
         bool isStable
     ) external override onlyRole(LOAN_MANAGER_ROLE) nonReentrant {
-        HubPoolLogic.updateWithBorrow(_poolData, amount, isStable);
+        HubPoolLogic.updateWithBorrow(
+            _poolData,
+            oldBorrowAmount,
+            additionalBorrowAmount,
+            oldBorrowStableRate,
+            newBorrowStableRate,
+            isStable
+        );
     }
 
     function preparePoolForRepay()
@@ -204,8 +214,21 @@ abstract contract HubPool is ReentrancyGuard, IHubPool, HubPoolState, ERC20Flash
         return HubPoolLogic.updateWithRepayWithCollateral(_poolData, principalPaid, interestPaid, loanStableRate);
     }
 
-    function updatePoolWithLiquidation() external override onlyRole(LOAN_MANAGER_ROLE) nonReentrant {
-        HubPoolLogic.updateWithLiquidation(_poolData);
+    function updatePoolWithLiquidation(
+        uint256 repaidBorrowAmount,
+        uint256 violatorLoanStableRate,
+        uint256 liquidatorOldBorrowAmount,
+        uint256 liquidatorOldLoanStableRate,
+        uint256 liquidatorNewLoanStableRate
+    ) external override onlyRole(LOAN_MANAGER_ROLE) nonReentrant {
+        HubPoolLogic.updateWithLiquidation(
+            _poolData,
+            repaidBorrowAmount,
+            violatorLoanStableRate,
+            liquidatorOldBorrowAmount,
+            liquidatorOldLoanStableRate,
+            liquidatorNewLoanStableRate
+        );
     }
 
     function preparePoolForSwitchBorrowType(
@@ -244,13 +267,6 @@ abstract contract HubPool is ReentrancyGuard, IHubPool, HubPoolState, ERC20Flash
         return HubPoolLogic.prepareForRebalanceUp(_poolData);
     }
 
-    function updatePoolWithRebalanceUp(
-        uint256 amount,
-        uint256 oldLoanStableInterestRate
-    ) external override onlyRole(LOAN_MANAGER_ROLE) nonReentrant {
-        HubPoolLogic.updateWithRebalanceUp(_poolData, amount, oldLoanStableInterestRate);
-    }
-
     function preparePoolForRebalanceDown()
         external
         override
@@ -261,11 +277,11 @@ abstract contract HubPool is ReentrancyGuard, IHubPool, HubPoolState, ERC20Flash
         return HubPoolLogic.prepareForRebalanceDown(_poolData);
     }
 
-    function updatePoolWithRebalanceDown(
+    function updatePoolWithRebalance(
         uint256 amount,
         uint256 oldLoanStableInterestRate
     ) external override onlyRole(LOAN_MANAGER_ROLE) nonReentrant {
-        HubPoolLogic.updateWithRebalanceDown(_poolData, amount, oldLoanStableInterestRate);
+        HubPoolLogic.updateWithRebalance(_poolData, amount, oldLoanStableInterestRate);
     }
 
     function mintFTokenForFeeRecipient(uint256 amount) external override onlyRole(LOAN_MANAGER_ROLE) nonReentrant {

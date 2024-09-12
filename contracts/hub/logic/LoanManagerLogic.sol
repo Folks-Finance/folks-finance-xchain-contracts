@@ -49,7 +49,7 @@ library LoanManagerLogic {
         bytes32 liquidatorLoanId,
         uint8 colPoolId,
         uint8 borPoolId,
-        uint256 repayBorrowAmount,
+        uint256 repayBorrowBalance,
         uint256 liquidatorCollateralFAmount,
         uint256 reserveCollateralFAmount
     );
@@ -286,7 +286,7 @@ library LoanManagerLogic {
 
         // increase the user loan borrow and global borrow used for loan type
         bool isStableBorrow = params.maxStableRate > 0;
-        userLoan.increaseBorrow(
+        (uint256 oldBorrowAmount, uint256 oldBorrowStableRate, uint256 newBorrowStableRate) = userLoan.increaseBorrow(
             DataTypes.UpdateUserLoanBorrowParams({
                 poolId: params.poolId,
                 amount: params.amount,
@@ -299,7 +299,13 @@ library LoanManagerLogic {
         loanPool.increaseBorrow(params.amount);
 
         // update the pool
-        pool.updatePoolWithBorrow(params.amount, isStableBorrow);
+        pool.updatePoolWithBorrow(
+            oldBorrowAmount,
+            params.amount,
+            oldBorrowStableRate,
+            newBorrowStableRate,
+            isStableBorrow
+        );
 
         // check loan is over-collateralised after the borrow
         if (!userLoan.isLoanOverCollateralized(pools, loanType.pools, oracleManager))
@@ -481,7 +487,7 @@ library LoanManagerLogic {
             // transfer borrow from violator to liquidator
             liquidationBorrowTransfer = loansParams.updateLiquidationBorrows(
                 borrowPoolParams,
-                liquidationAmounts.repayBorrowAmount,
+                liquidationAmounts.repayBorrowBalance,
                 userLoans
             );
         }
@@ -489,14 +495,20 @@ library LoanManagerLogic {
         // transfer collateral from violator to liquidator
         DataTypes.CollateralSeizedParams memory collateralSeized = loansParams.updateLiquidationCollaterals(
             liquidationAmounts.seizeCollateralFAmount,
-            liquidationAmounts.repayBorrowToCollateralFAmount,
+            liquidationAmounts.repayBorrowBalanceToCollateralFAmount,
             params.minSeizedAmount,
             userLoans,
             loanTypes
         );
 
         // update the pool
-        pools[params.borPoolId].updatePoolWithLiquidation();
+        pools[params.borPoolId].updatePoolWithLiquidation(
+            liquidationBorrowTransfer.repaidBorrowAmount,
+            liquidationBorrowTransfer.violatorLoanStableRate,
+            liquidationBorrowTransfer.liquidatorOldBorrowAmount,
+            liquidationBorrowTransfer.liquidatorOldLoanStableRate,
+            liquidationBorrowTransfer.liquidatorNewLoanStableRate
+        );
 
         // check liquidator loan in over-collateralized after taking over part of the violator loan
         loansParams.checkLiquidatorLoan(userLoans, loanTypes, pools, params.oracleManager);
@@ -509,7 +521,7 @@ library LoanManagerLogic {
             params.liquidatorLoanId,
             params.colPoolId,
             params.borPoolId,
-            liquidationAmounts.repayBorrowAmount,
+            liquidationAmounts.repayBorrowBalance,
             collateralSeized.liquidatorAmount,
             collateralSeized.reserveAmount
         );
@@ -609,7 +621,7 @@ library LoanManagerLogic {
         loanBorrow.stableInterestRate = borrowPoolParams.stableInterestRate;
 
         // update the pool
-        pool.updatePoolWithRebalanceUp(loanBorrow.amount, oldLoanStableInterestRate);
+        pool.updatePoolWithRebalance(loanBorrow.amount, oldLoanStableInterestRate);
 
         emit RebalanceUp(params.loanId, params.poolId, borrowPoolParams.stableInterestRate);
     }
@@ -657,7 +669,7 @@ library LoanManagerLogic {
         loanBorrow.stableInterestRate = rebalanceDownPoolParams.stableInterestRate;
 
         // update the pool
-        pool.updatePoolWithRebalanceDown(loanBorrow.amount, oldLoanStableInterestRate);
+        pool.updatePoolWithRebalance(loanBorrow.amount, oldLoanStableInterestRate);
 
         emit RebalanceDown(params.loanId, params.poolId, rebalanceDownPoolParams.stableInterestRate);
     }

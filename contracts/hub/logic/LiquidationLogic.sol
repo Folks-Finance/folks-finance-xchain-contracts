@@ -24,19 +24,17 @@ library LiquidationLogic {
     /// @notice Updates violator and liquidator loans moving borrow from violator to liquidator in order to keep the loan healthy.
     /// @param loansParams LiquidationLoansParams struct including the violator and liquidator loan ids and the pool ids.
     /// @param borrowPoolParams BorrowPoolParams struct including the borrow pool's variable interest index and stable interest rate.
-    /// @param repayBorrowAmount The amount to repay.
+    /// @param repayBorrowBalance The amount to repay.
     /// @param userLoans The mapping of the loan ID to user loan including loan type, collateral and borrow details.
     /// @return liquidationBorrowTransfer LiquidationBorrowTransfer struct including the amount paid, interest paid and excess paid.
     function updateLiquidationBorrows(
         DataTypes.LiquidationLoansParams memory loansParams,
         DataTypes.BorrowPoolParams memory borrowPoolParams,
-        uint256 repayBorrowAmount,
+        uint256 repayBorrowBalance,
         mapping(bytes32 => LoanManagerState.UserLoan) storage userLoans
     ) external returns (DataTypes.LiquidationBorrowTransfer memory liquidationBorrowTransfer) {
         LoanManagerState.UserLoan storage violatorLoan = userLoans[loansParams.violatorLoanId];
         LoanManagerState.UserLoan storage liquidatorLoan = userLoans[loansParams.liquidatorLoanId];
-
-        LoanManagerState.UserLoanBorrow storage violatorLoanBorrow = violatorLoan.borrows[loansParams.borrowPoolId];
 
         DataTypes.UpdateUserLoanBorrowParams memory updateLoanBorrowParams = DataTypes.UpdateUserLoanBorrowParams({
             poolId: loansParams.borrowPoolId,
@@ -47,24 +45,30 @@ library LiquidationLogic {
         });
 
         (uint256 repaidBorrowAmount, uint256 repaidBorrowBalance, uint256 violatorStableRate) = UserLoanLogic
-            .transferBorrowFromViolator(violatorLoan, loansParams.borrowPoolId, repayBorrowAmount);
-        UserLoanLogic.transferBorrowToLiquidator(
-            liquidatorLoan,
-            updateLoanBorrowParams,
-            repaidBorrowAmount,
-            repaidBorrowBalance,
-            violatorStableRate
-        );
+            .transferBorrowFromViolator(violatorLoan, loansParams.borrowPoolId, repayBorrowBalance);
+        (
+            uint256 liquidatorOldBorrowAmount,
+            uint256 liquidatorOldLoanStableRate,
+            uint256 liquidatorNewLoanStableRate
+        ) = UserLoanLogic.transferBorrowToLiquidator(
+                liquidatorLoan,
+                updateLoanBorrowParams,
+                repaidBorrowAmount,
+                repaidBorrowBalance,
+                violatorStableRate
+            );
 
-        liquidationBorrowTransfer.amountRepaid = repaidBorrowAmount;
-        liquidationBorrowTransfer.balanceRepaid = repaidBorrowBalance;
-        liquidationBorrowTransfer.isStable = violatorLoanBorrow.stableInterestRate > 0;
+        liquidationBorrowTransfer.repaidBorrowAmount = repaidBorrowAmount;
+        liquidationBorrowTransfer.violatorLoanStableRate = violatorStableRate;
+        liquidationBorrowTransfer.liquidatorOldBorrowAmount = liquidatorOldBorrowAmount;
+        liquidationBorrowTransfer.liquidatorOldLoanStableRate = liquidatorOldLoanStableRate;
+        liquidationBorrowTransfer.liquidatorNewLoanStableRate = liquidatorNewLoanStableRate;
     }
 
     /// @notice Updates violator and liquidator loans moving the collateral seized.
     /// @param loansParams LiquidationLoansParams struct including the violator and liquidator loan ids and the pool ids.
     /// @param seizeCollateralFAmount The amount of collateral to seize.
-    /// @param repayBorrowToCollateralFAmount The liquidation amount expressed in fAsset.
+    /// @param repayBorrowBalanceToCollateralFAmount The liquidation amount expressed in fAsset.
     /// @param minSeized The minimum amount to seize acceptable for the liquidator.
     /// @param userLoans The mapping of the loan ID to user loan including loan type, collateral and borrow details.
     /// @param loanTypes The mapping of the type ID to loan types data including a mapping with the pools' details.
@@ -72,7 +76,7 @@ library LiquidationLogic {
     function updateLiquidationCollaterals(
         DataTypes.LiquidationLoansParams memory loansParams,
         uint256 seizeCollateralFAmount,
-        uint256 repayBorrowToCollateralFAmount,
+        uint256 repayBorrowBalanceToCollateralFAmount,
         uint256 minSeized,
         mapping(bytes32 => LoanManagerState.UserLoan) storage userLoans,
         mapping(uint16 => LoanManagerState.LoanType) storage loanTypes
@@ -86,7 +90,7 @@ library LiquidationLogic {
         // check the collateral seized is at least the min
         collateralSeized = calcCollateralSeized(
             seizeCollateralFAmount,
-            repayBorrowToCollateralFAmount,
+            repayBorrowBalanceToCollateralFAmount,
             loanPool.liquidationFee
         );
         if (collateralSeized.liquidatorAmount < minSeized) revert InsufficientSeized();
@@ -210,17 +214,17 @@ library LiquidationLogic {
 
         DataTypes.PriceFeed memory borrPriceFeed = oracleManager.processPriceFeed(borrPoolId);
         DataTypes.PriceFeed memory collPriceFeed = oracleManager.processPriceFeed(collPoolId);
-        uint256 repayBorrowAmount;
+        uint256 repayBorrowBalance;
         {
             uint256 maxRepayBorrowAmount = MathUtils.calcAssetAmount(
                 maxRepayBorrowValue * MathUtils.ONE_10_DP,
                 borrPriceFeed.price,
                 borrPriceFeed.decimals
             );
-            repayBorrowAmount = Math.min(maxAmountToRepay, Math.min(maxRepayBorrowAmount, violatorLoanBorrow.balance));
+            repayBorrowBalance = Math.min(maxAmountToRepay, Math.min(maxRepayBorrowAmount, violatorLoanBorrow.balance));
         }
         {
-            uint256 seizeUnderlyingCollateralAmount = repayBorrowAmount.convToSeizedCollateralAmount(
+            uint256 seizeUnderlyingCollateralAmount = repayBorrowBalance.convToSeizedCollateralAmount(
                 collPriceFeed.price,
                 collPriceFeed.decimals,
                 borrPriceFeed.price,
@@ -233,7 +237,7 @@ library LiquidationLogic {
             );
             if (seizeUnderlyingCollateralAmount > violatorUnderlingCollateralBalance) {
                 seizeUnderlyingCollateralAmount = violatorUnderlingCollateralBalance;
-                repayBorrowAmount = seizeUnderlyingCollateralAmount.convToRepayBorrowAmount(
+                repayBorrowBalance = seizeUnderlyingCollateralAmount.convToRepayBorrowBalance(
                     collPriceFeed.price,
                     collPriceFeed.decimals,
                     borrPriceFeed.price,
@@ -242,8 +246,8 @@ library LiquidationLogic {
                 );
             }
 
-            liquidationAmounts.repayBorrowAmount = repayBorrowAmount;
-            liquidationAmounts.repayBorrowToCollateralFAmount = repayBorrowAmount.convToCollateralFAmount(
+            liquidationAmounts.repayBorrowBalance = repayBorrowBalance;
+            liquidationAmounts.repayBorrowBalanceToCollateralFAmount = repayBorrowBalance.convToCollateralFAmount(
                 collPriceFeed.price,
                 collPriceFeed.decimals,
                 borrPriceFeed.price,
@@ -301,17 +305,17 @@ library LiquidationLogic {
 
     /// @dev Calculates the collateral fAmounts to seize: total, reserve and liquidator amounts.
     /// @param seizeCollateralFAmount The amount of collateral to seize.
-    /// @param repayBorrowToCollateralFAmount The liquidation amount expressed in fAsset.
+    /// @param borrowToCollateralFAmount The liquidation amount expressed in fAsset.
     /// @param liquidationFee 4dp - The liquidation fee of the collateral.
     /// @return collateralSeized CollateralSeizedParams struct including the total amount, liquidator amount and reserve amount.
     function calcCollateralSeized(
         uint256 seizeCollateralFAmount,
-        uint256 repayBorrowToCollateralFAmount,
+        uint256 borrowToCollateralFAmount,
         uint16 liquidationFee
     ) internal pure returns (DataTypes.CollateralSeizedParams memory collateralSeized) {
         collateralSeized.totalAmount = seizeCollateralFAmount;
         collateralSeized.reserveAmount = collateralSeized.totalAmount.calcReserveCol(
-            repayBorrowToCollateralFAmount,
+            borrowToCollateralFAmount,
             liquidationFee
         );
         collateralSeized.liquidatorAmount = collateralSeized.totalAmount - collateralSeized.reserveAmount;

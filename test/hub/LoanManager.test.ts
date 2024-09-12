@@ -25,13 +25,13 @@ import { SECONDS_IN_DAY, SECONDS_IN_HOUR, getLatestBlockTimestamp, getRandomInt 
 import { UserLoanBorrow, UserLoanCollateral } from "./libraries/assets/loanData";
 import { getNodeOutputData } from "./libraries/assets/oracleData";
 import {
-  calcAverageStableRate,
   calcBorrowBalance,
   calcBorrowInterestIndex,
+  calcLiquidatorAverageStableRate,
   calcReserveCol,
   calcStableInterestRate,
   convToCollateralFAmount,
-  convToRepayBorrowAmount,
+  convToRepayBorrowBalance,
   convToSeizedCollateralAmount,
   toFAmount,
   toUnderlingAmount,
@@ -1948,7 +1948,7 @@ describe("LoanManager (unit tests)", () => {
       const latestBlockTimestamp = await getLatestBlockTimestamp();
       await expect(borrow).to.emit(pool, "PreparePoolForBorrow").withArgs(borrowAmount, 0);
       await expect(borrow).to.emit(loanManager, "RewardIndexesUpdated").withArgs(poolId, 0, 0, latestBlockTimestamp);
-      await expect(borrow).to.emit(pool, "UpdatePoolWithBorrow").withArgs(borrowAmount, false);
+      await expect(borrow).to.emit(pool, "UpdatePoolWithBorrow").withArgs(0, borrowAmount, 0, 0, false);
       const loanManagerLogic = await ethers.getContractAt("LoanManagerLogic", loanManagerAddress);
       await expect(borrow)
         .to.emit(loanManagerLogic, "Borrow")
@@ -2003,7 +2003,9 @@ describe("LoanManager (unit tests)", () => {
       const latestBlockTimestamp = await getLatestBlockTimestamp();
       await expect(borrow).to.emit(pool, "PreparePoolForBorrow").withArgs(borrowAmount, usdcStableInterestRate);
       await expect(borrow).to.emit(loanManager, "RewardIndexesUpdated").withArgs(poolId, 0, 0, latestBlockTimestamp);
-      await expect(borrow).to.emit(pool, "UpdatePoolWithBorrow").withArgs(borrowAmount, true);
+      await expect(borrow)
+        .to.emit(pool, "UpdatePoolWithBorrow")
+        .withArgs(0, borrowAmount, 0, usdcStableInterestRate, true);
       const loanManagerLogic = await ethers.getContractAt("LoanManagerLogic", loanManagerAddress);
       await expect(borrow)
         .to.emit(loanManagerLogic, "Borrow")
@@ -2039,7 +2041,7 @@ describe("LoanManager (unit tests)", () => {
       expect(userPoolRewards).to.deep.equal([0, 0, 0]);
     });
 
-    it("Should successfully handle zero borrow", async () => {
+    it("Should successfully handle zero borrow when new", async () => {
       const { hub, loanManager, loanManagerAddress, oracleManager, loanTypeId, pools, loanId, accountId } =
         await loadFixture(depositEtherFixture);
 
@@ -2068,7 +2070,7 @@ describe("LoanManager (unit tests)", () => {
       const latestBlockTimestamp = await getLatestBlockTimestamp();
       await expect(borrow).to.emit(pool, "PreparePoolForBorrow").withArgs(borrowAmount, 0);
       await expect(borrow).to.emit(loanManager, "RewardIndexesUpdated").withArgs(poolId, 0, 0, latestBlockTimestamp);
-      await expect(borrow).to.emit(pool, "UpdatePoolWithBorrow").withArgs(borrowAmount, false);
+      await expect(borrow).to.emit(pool, "UpdatePoolWithBorrow").withArgs(0, borrowAmount, 0, 0, false);
       const loanManagerLogic = await ethers.getContractAt("LoanManagerLogic", loanManagerAddress);
       await expect(borrow)
         .to.emit(loanManagerLogic, "Borrow")
@@ -2104,7 +2106,7 @@ describe("LoanManager (unit tests)", () => {
         accountId,
         loanTypeId,
         borrowAmount: oldBorrowAmount,
-        usdcVariableInterestIndex: oldvariableInterestIndex,
+        usdcVariableInterestIndex: oldVariableInterestIndex,
       } = await loadFixture(depositEtherAndVariableBorrowUSDCFixture);
 
       const { pool, poolId } = pools.USDC;
@@ -2125,7 +2127,7 @@ describe("LoanManager (unit tests)", () => {
       const latestBlockTimestamp = await getLatestBlockTimestamp();
       await expect(borrow).to.emit(pool, "PreparePoolForBorrow").withArgs(borrowAmount, 0);
       await expect(borrow).to.emit(loanManager, "RewardIndexesUpdated").withArgs(poolId, 0, 0, latestBlockTimestamp);
-      await expect(borrow).to.emit(pool, "UpdatePoolWithBorrow").withArgs(borrowAmount, false);
+      await expect(borrow).to.emit(pool, "UpdatePoolWithBorrow").withArgs(oldBorrowAmount, borrowAmount, 0, 0, false);
       const loanManagerLogic = await ethers.getContractAt("LoanManagerLogic", loanManagerAddress);
       await expect(borrow)
         .to.emit(loanManagerLogic, "Borrow")
@@ -2136,7 +2138,7 @@ describe("LoanManager (unit tests)", () => {
       const borrows: UserLoanBorrow[] = [
         {
           amount: oldBorrowAmount + borrowAmount,
-          balance: calcBorrowBalance(oldBorrowAmount, variableInterestIndex, oldvariableInterestIndex) + borrowAmount,
+          balance: calcBorrowBalance(oldBorrowAmount, variableInterestIndex, oldVariableInterestIndex) + borrowAmount,
           lastInterestIndex: variableInterestIndex,
           stableInterestRate: BigInt(0),
           lastStableUpdateTimestamp: BigInt(0),
@@ -2171,6 +2173,7 @@ describe("LoanManager (unit tests)", () => {
         accountId,
         loanTypeId,
         borrowAmount: oldBorrowAmount,
+        usdcStableInterestRate: oldStableInterestRate,
       } = await loadFixture(depositEtherAndStableBorrowUSDCFixture);
 
       const { pool, poolId } = pools.USDC;
@@ -2183,8 +2186,27 @@ describe("LoanManager (unit tests)", () => {
       await pools.USDC.pool.setBorrowPoolParams({ variableInterestIndex, stableInterestRate });
       await pools.USDC.pool.setUpdatedVariableBorrowInterestIndex(variableInterestIndex);
 
-      // borrow
+      // simulate some interest
+      const timestamp = (await getLatestBlockTimestamp()) + Number(SECONDS_IN_DAY);
+      await time.setNextBlockTimestamp(timestamp);
+
+      // calculate new borrow balance and stable rate
+      const newInterestIndex = calcBorrowInterestIndex(
+        oldBorrow.stableInterestRate,
+        oldBorrow.lastInterestIndex,
+        BigInt(timestamp) - oldBorrow.lastStableUpdateTimestamp,
+        true
+      );
+      const borrowBalance = calcBorrowBalance(oldBorrow.balance, newInterestIndex, oldBorrow.lastInterestIndex);
       const borrowAmount = BigInt(500e6);
+      const newStableInterestRate = calcStableInterestRate(
+        borrowBalance,
+        borrowAmount,
+        oldStableInterestRate,
+        stableInterestRate
+      );
+
+      // borrow
       const borrow = await loanManager
         .connect(hub)
         .borrow(loanId, accountId, pools.USDC.poolId, borrowAmount, stableInterestRate);
@@ -2193,7 +2215,9 @@ describe("LoanManager (unit tests)", () => {
       const latestBlockTimestamp = await getLatestBlockTimestamp();
       await expect(borrow).to.emit(pool, "PreparePoolForBorrow").withArgs(borrowAmount, stableInterestRate);
       await expect(borrow).to.emit(loanManager, "RewardIndexesUpdated").withArgs(poolId, 0, 0, latestBlockTimestamp);
-      await expect(borrow).to.emit(pool, "UpdatePoolWithBorrow").withArgs(borrowAmount, true);
+      await expect(borrow)
+        .to.emit(pool, "UpdatePoolWithBorrow")
+        .withArgs(oldBorrowAmount, borrowAmount, oldStableInterestRate, newStableInterestRate, true);
       const loanManagerLogic = await ethers.getContractAt("LoanManagerLogic", loanManagerAddress);
       await expect(borrow)
         .to.emit(loanManagerLogic, "Borrow")
@@ -2201,13 +2225,6 @@ describe("LoanManager (unit tests)", () => {
 
       // check user loan
       const userLoan = await loanManager.getUserLoan(loanId);
-      const newInterestIndex = calcBorrowInterestIndex(
-        oldBorrow.stableInterestRate,
-        oldBorrow.lastInterestIndex,
-        BigInt(latestBlockTimestamp) - oldBorrow.lastStableUpdateTimestamp,
-        true
-      );
-      const borrowBalance = calcBorrowBalance(oldBorrow.balance, newInterestIndex, oldBorrow.lastInterestIndex);
       const borrows: UserLoanBorrow[] = [
         {
           amount: oldBorrowAmount + borrowAmount,
@@ -2241,6 +2258,69 @@ describe("LoanManager (unit tests)", () => {
       expect(userPoolRewards).to.deep.equal([0, 0, 0]);
     });
 
+    it("Should successfully handle zero borrow when existing borrow", async () => {
+      const {
+        hub,
+        loanManager,
+        loanManagerAddress,
+        pools,
+        loanId,
+        accountId,
+        loanTypeId,
+        borrowAmount: oldBorrowAmount,
+        usdcStableInterestRate: oldStableInterestRate,
+      } = await loadFixture(depositEtherAndStableBorrowUSDCFixture);
+
+      // prepare borrow
+      const variableInterestIndex = BigInt(1.1e18);
+      const stableInterestRate = BigInt(0.13e18);
+      await pools.USDC.pool.setBorrowPoolParams({ variableInterestIndex, stableInterestRate });
+      await pools.USDC.pool.setUpdatedVariableBorrowInterestIndex(variableInterestIndex);
+
+      // simulate some interest
+      const timestamp = (await getLatestBlockTimestamp()) + Number(SECONDS_IN_DAY);
+      await time.setNextBlockTimestamp(timestamp);
+
+      // shouldn't be updated in smart contract because of zero borrow
+      const { pool, poolId } = pools.USDC;
+      const userLoanBefore = await loanManager.getUserLoan(loanId);
+      const loanPoolBefore = await loanManager.getLoanPool(loanTypeId, poolId);
+
+      // borrow from USDC pool
+      const borrowAmount = BigInt(0);
+      const borrow = await loanManager
+        .connect(hub)
+        .borrow(loanId, accountId, pools.USDC.poolId, borrowAmount, stableInterestRate);
+
+      // check events
+      const latestBlockTimestamp = await getLatestBlockTimestamp();
+      await expect(borrow).to.emit(pool, "PreparePoolForBorrow").withArgs(borrowAmount, stableInterestRate);
+      await expect(borrow).to.emit(loanManager, "RewardIndexesUpdated").withArgs(poolId, 0, 0, latestBlockTimestamp);
+      await expect(borrow)
+        .to.emit(pool, "UpdatePoolWithBorrow")
+        .withArgs(oldBorrowAmount, borrowAmount, oldStableInterestRate, 0, true);
+      const loanManagerLogic = await ethers.getContractAt("LoanManagerLogic", loanManagerAddress);
+      await expect(borrow)
+        .to.emit(loanManagerLogic, "Borrow")
+        .withArgs(loanId, poolId, borrowAmount, true, stableInterestRate);
+
+      // check user loan
+      const userLoanAfter = await loanManager.getUserLoan(loanId);
+      expect(await loanManager.isUserLoanActive(loanId)).to.be.true;
+      expect(userLoanAfter).to.deep.equal(userLoanBefore);
+
+      // check loan pool
+      const loanPoolAfter = await loanManager.getLoanPool(loanTypeId, poolId);
+      expect(loanPoolAfter[1]).to.equal(loanPoolBefore[1]);
+      expect(loanPoolAfter[10][0]).to.equal(latestBlockTimestamp);
+      expect(loanPoolAfter[10][4]).to.equal(loanPoolBefore[10][4]);
+      expect(loanPoolAfter[10][5]).to.equal(loanPoolBefore[10][4]);
+
+      // check user rewards
+      const userPoolRewards = await loanManager.getUserPoolRewards(accountId, poolId);
+      expect(userPoolRewards).to.deep.equal([0, 0, 0]);
+    });
+
     it("Should successfully take second borrow", async () => {
       const { hub, loanManager, loanManagerAddress, pools, loanId, accountId, loanTypeId } = await loadFixture(
         depositEtherAndStableBorrowUSDCFixture
@@ -2264,7 +2344,7 @@ describe("LoanManager (unit tests)", () => {
       const latestBlockTimestamp = await getLatestBlockTimestamp();
       await expect(borrow).to.emit(pool, "PreparePoolForBorrow").withArgs(borrowAmount, 0);
       await expect(borrow).to.emit(loanManager, "RewardIndexesUpdated").withArgs(poolId, 0, 0, latestBlockTimestamp);
-      await expect(borrow).to.emit(pool, "UpdatePoolWithBorrow").withArgs(borrowAmount, false);
+      await expect(borrow).to.emit(pool, "UpdatePoolWithBorrow").withArgs(0, borrowAmount, 0, 0, false);
       const loanManagerLogic = await ethers.getContractAt("LoanManagerLogic", loanManagerAddress);
       await expect(borrow)
         .to.emit(loanManagerLogic, "Borrow")
@@ -4664,8 +4744,8 @@ describe("LoanManager (unit tests)", () => {
           amount: liquidatorBorrowAmount + repayAmount,
           balance: liquidatorBorrowBalance + repayAmount,
           lastInterestIndex: newLiquidatorInterestIndex,
-          stableInterestRate: calcAverageStableRate(
-            liquidatorBorrowAmount,
+          stableInterestRate: calcLiquidatorAverageStableRate(
+            liquidatorBorrowBalance,
             liquidatorStableInterestRate,
             repayAmount,
             violatorUsdcStableInterestRate
@@ -4946,7 +5026,7 @@ describe("LoanManager (unit tests)", () => {
       // Borrow $0
       const seizeCollateralAmount = depositAmount;
       const seizeCollateralFAmount = depositFAmount;
-      const repayAmount = convToRepayBorrowAmount(
+      const repayAmount = convToRepayBorrowBalance(
         seizeCollateralAmount,
         ethNodeOutputData.price,
         pools.ETH.tokenDecimals,
@@ -5975,7 +6055,7 @@ describe("LoanManager (unit tests)", () => {
       const latestBlockTimestamp = await getLatestBlockTimestamp();
       await expect(rebalanceUp).to.emit(pool, "PreparePoolForRebalanceUp").withArgs();
       await expect(rebalanceUp)
-        .to.emit(pool, "UpdatePoolWithRebalanceUp")
+        .to.emit(pool, "UpdatePoolWithRebalance")
         .withArgs(borrowAmount, oldBorrow.stableInterestRate);
       const loanManagerLogic = await ethers.getContractAt("LoanManagerLogic", loanManagerAddress);
       await expect(rebalanceUp).to.emit(loanManagerLogic, "RebalanceUp").withArgs(loanId, poolId, stableInterestRate);
@@ -6109,7 +6189,7 @@ describe("LoanManager (unit tests)", () => {
       const latestBlockTimestamp = await getLatestBlockTimestamp();
       await expect(rebalanceDown).to.emit(pool, "PreparePoolForRebalanceDown").withArgs();
       await expect(rebalanceDown)
-        .to.emit(pool, "UpdatePoolWithRebalanceDown")
+        .to.emit(pool, "UpdatePoolWithRebalance")
         .withArgs(borrowAmount, oldBorrow.stableInterestRate);
       const loanManagerLogic = await ethers.getContractAt("LoanManagerLogic", loanManagerAddress);
       await expect(rebalanceDown)

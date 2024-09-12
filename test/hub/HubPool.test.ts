@@ -24,12 +24,12 @@ import { SECONDS_IN_DAY, SECONDS_IN_HOUR, SECONDS_IN_YEAR, getLatestBlockTimesta
 import { Action, Finality, MessageParams, buildMessagePayload, extraArgsToBytes } from "../utils/messages/messages";
 import { getNodeOutputData } from "./libraries/assets/oracleData";
 import {
+  calcAverageStableBorrowInterestRate,
   calcBorrowInterestIndex,
-  calcDecreasingAverageStableBorrowInterestRate,
   calcDepositInterestIndex,
   calcDepositInterestRate,
   calcFlashLoanFeeAmount,
-  calcIncreasingAverageStableBorrowInterestRate,
+  calcLiquidatorAverageStableRate,
   calcOverallBorrowInterestRate,
   calcRebalanceDownThreshold,
   calcRebalanceUpThreshold,
@@ -1065,27 +1065,40 @@ describe("HubPool (unit tests)", () => {
 
       // set pool data with deposit total amount
       const depositTotalAmount = BigInt(10e18);
+      const variableBorrowTotalAmount = BigInt(1.43543539e18);
       const poolData = getInitialPoolData();
+      poolData.variableBorrowData.totalAmount = variableBorrowTotalAmount;
       poolData.depositData.totalAmount = depositTotalAmount;
       await hubPool.setPoolData(poolData);
 
       // update pool with borrow
-      const amount = BigInt(0.1e8);
+      const oldBorrowAmount = BigInt(0.2e8);
+      const additionalBorrowAmount = BigInt(0.1e8);
+      const oldBorrowStableRate = BigInt(0);
+      const newBorrowStableRate = BigInt(0);
       const isStable = false;
-      const updatePoolWithBorrow = await hubPool.connect(loanManager).updatePoolWithBorrow(amount, isStable);
-      expect((await hubPool.getVariableBorrowData())[3]).to.equal(poolData.variableBorrowData.totalAmount + amount);
+      const updatePoolWithBorrow = await hubPool
+        .connect(loanManager)
+        .updatePoolWithBorrow(
+          oldBorrowAmount,
+          additionalBorrowAmount,
+          oldBorrowStableRate,
+          newBorrowStableRate,
+          isStable
+        );
+      expect((await hubPool.getVariableBorrowData())[3]).to.equal(variableBorrowTotalAmount + additionalBorrowAmount);
       await expect(updatePoolWithBorrow).to.emit(hubPool, "InterestRatesUpdated");
       await verifyInterestRates(hubPool);
     });
 
-    it("Should successfully update pool with stable borrow", async () => {
+    it("Should successfully update pool with stable borrow when no old borrow amount", async () => {
       const { loanManager, hubPool } = await loadFixture(deployHubPoolFixture);
 
       // set pool data with interest data
       const depositTotalAmount = BigInt(10e18);
-      const stableBorrowTotalAmount = BigInt(1.43543539e18);
-      const stableInterestRate = BigInt(0.1420009e18);
-      const stableAverageInterestRate = BigInt(0.19014e18);
+      const stableBorrowTotalAmount = BigInt(1e18);
+      const stableInterestRate = BigInt(0.2e18);
+      const stableAverageInterestRate = BigInt(0.1e18);
       const poolData = getInitialPoolData();
       poolData.depositData.totalAmount = depositTotalAmount;
       poolData.stableBorrowData.totalAmount = stableBorrowTotalAmount;
@@ -1094,18 +1107,77 @@ describe("HubPool (unit tests)", () => {
       await hubPool.setPoolData(poolData);
 
       // calculate new stable average interest rate
-      const amount = BigInt(0.15e8);
-      const newStableAverageInterestRate = calcIncreasingAverageStableBorrowInterestRate(
-        amount,
-        stableInterestRate,
+      const oldBorrowAmount = BigInt(0);
+      const additionalBorrowAmount = BigInt(1e18);
+      const oldBorrowStableRate = BigInt(0);
+      const newBorrowStableRate = stableInterestRate;
+      const newStableAverageInterestRate = calcAverageStableBorrowInterestRate(
+        oldBorrowAmount,
+        oldBorrowAmount + additionalBorrowAmount,
+        oldBorrowStableRate,
+        newBorrowStableRate,
         stableBorrowTotalAmount,
         stableAverageInterestRate
       );
 
       // update pool with borrow
       const isStable = true;
-      const updatePoolWithBorrow = await hubPool.connect(loanManager).updatePoolWithBorrow(amount, isStable);
-      expect((await hubPool.getStableBorrowData())[8]).to.equal(poolData.stableBorrowData.totalAmount + amount);
+      const updatePoolWithBorrow = await hubPool
+        .connect(loanManager)
+        .updatePoolWithBorrow(
+          oldBorrowAmount,
+          additionalBorrowAmount,
+          oldBorrowStableRate,
+          newBorrowStableRate,
+          isStable
+        );
+      expect((await hubPool.getStableBorrowData())[8]).to.equal(stableBorrowTotalAmount + additionalBorrowAmount);
+      expect((await hubPool.getStableBorrowData())[10]).to.equal(newStableAverageInterestRate);
+      await expect(updatePoolWithBorrow).to.emit(hubPool, "InterestRatesUpdated");
+      await verifyInterestRates(hubPool);
+    });
+
+    it("Should successfully update pool with stable borrow when there is an old borrow amount", async () => {
+      const { loanManager, hubPool } = await loadFixture(deployHubPoolFixture);
+
+      // set pool data with interest data
+      const depositTotalAmount = BigInt(10e18);
+      const stableBorrowTotalAmount = BigInt(1e18);
+      const stableInterestRate = BigInt(0.2e18);
+      const stableAverageInterestRate = BigInt(0.1e18);
+      const poolData = getInitialPoolData();
+      poolData.depositData.totalAmount = depositTotalAmount;
+      poolData.stableBorrowData.totalAmount = stableBorrowTotalAmount;
+      poolData.stableBorrowData.interestRate = stableInterestRate;
+      poolData.stableBorrowData.averageInterestRate = stableAverageInterestRate;
+      await hubPool.setPoolData(poolData);
+
+      // calculate new stable average interest rate
+      const oldBorrowAmount = BigInt(0.25e18);
+      const additionalBorrowAmount = BigInt(0.5e18);
+      const oldBorrowStableRate = stableAverageInterestRate;
+      const newBorrowStableRate = stableInterestRate;
+      const newStableAverageInterestRate = calcAverageStableBorrowInterestRate(
+        oldBorrowAmount,
+        oldBorrowAmount + additionalBorrowAmount,
+        oldBorrowStableRate,
+        newBorrowStableRate,
+        stableBorrowTotalAmount,
+        stableAverageInterestRate
+      );
+
+      // update pool with borrow
+      const isStable = true;
+      const updatePoolWithBorrow = await hubPool
+        .connect(loanManager)
+        .updatePoolWithBorrow(
+          oldBorrowAmount,
+          additionalBorrowAmount,
+          oldBorrowStableRate,
+          newBorrowStableRate,
+          isStable
+        );
+      expect((await hubPool.getStableBorrowData())[8]).to.equal(stableBorrowTotalAmount + additionalBorrowAmount);
       expect((await hubPool.getStableBorrowData())[10]).to.equal(newStableAverageInterestRate);
       await expect(updatePoolWithBorrow).to.emit(hubPool, "InterestRatesUpdated");
       await verifyInterestRates(hubPool);
@@ -1115,9 +1187,20 @@ describe("HubPool (unit tests)", () => {
       const { user, hubPool } = await loadFixture(deployHubPoolFixture);
 
       // prepare pool for borrow
-      const amount = BigInt(1);
+      const oldBorrowAmount = BigInt(0);
+      const additionalBorrowAmount = BigInt(1);
+      const oldBorrowStableRate = BigInt(0);
+      const newBorrowStableRate = BigInt(0);
       const isStable = false;
-      const updatePoolWithBorrow = hubPool.connect(user).updatePoolWithBorrow(amount, isStable);
+      const updatePoolWithBorrow = hubPool
+        .connect(user)
+        .updatePoolWithBorrow(
+          oldBorrowAmount,
+          additionalBorrowAmount,
+          oldBorrowStableRate,
+          newBorrowStableRate,
+          isStable
+        );
       await expect(updatePoolWithBorrow)
         .to.be.revertedWithCustomError(hubPool, "AccessControlUnauthorizedAccount")
         .withArgs(user.address, LOAN_MANAGER_ROLE);
@@ -1224,8 +1307,10 @@ describe("HubPool (unit tests)", () => {
       // calculate new stable average interest rate
       const principalPaid = BigInt(1.4e8);
       const loanStableRate = BigInt(0.125e18);
-      const newStableAverageInterestRate = calcDecreasingAverageStableBorrowInterestRate(
+      const newStableAverageInterestRate = calcAverageStableBorrowInterestRate(
         principalPaid,
+        BigInt(0),
+        loanStableRate,
         loanStableRate,
         stableBorrowTotalAmount,
         stableAverageInterestRate
@@ -1265,8 +1350,10 @@ describe("HubPool (unit tests)", () => {
       // calculate new stable average interest rate
       const principalPaid = stableBorrowTotalAmount - BigInt(1);
       const loanStableRate = BigInt(0.107852785437925392e18);
-      const newStableAverageInterestRate = calcDecreasingAverageStableBorrowInterestRate(
+      const newStableAverageInterestRate = calcAverageStableBorrowInterestRate(
         principalPaid,
+        BigInt(0),
+        loanStableRate,
         loanStableRate,
         stableBorrowTotalAmount,
         stableAverageInterestRate
@@ -1369,8 +1456,10 @@ describe("HubPool (unit tests)", () => {
       // calculate new stable average interest rate
       const principalPaid = BigInt(1.4e8);
       const loanStableRate = BigInt(0.125e18);
-      const newStableAverageInterestRate = calcDecreasingAverageStableBorrowInterestRate(
+      const newStableAverageInterestRate = calcAverageStableBorrowInterestRate(
         principalPaid,
+        BigInt(0),
+        loanStableRate,
         loanStableRate,
         stableBorrowTotalAmount,
         stableAverageInterestRate
@@ -1449,11 +1538,138 @@ describe("HubPool (unit tests)", () => {
   });
 
   describe("Update Pool With Liquidation", () => {
-    it("Should successfully update pool with liquidation", async () => {
+    it("Should successfully update pool with liquidation when variable borrow", async () => {
       const { loanManager, hubPool } = await loadFixture(deployHubPoolFixture);
 
+      // set pool data with interest data
+      const depositTotalAmount = BigInt(10e18);
+      const variableBorrowTotalAmount = BigInt(1.43543539e18);
+      const poolData = getInitialPoolData();
+      poolData.depositData.totalAmount = depositTotalAmount;
+      poolData.variableBorrowData.totalAmount = variableBorrowTotalAmount;
+      await hubPool.setPoolData(poolData);
+
       // update pool with liquidation
-      const updatePoolWithLiquidation = await hubPool.connect(loanManager).updatePoolWithLiquidation();
+      const repaidBorrowAmount = BigInt(0.35e18);
+      const violatorLoanStableRate = BigInt(0);
+      const liquidatorOldBorrowAmount = BigInt(0.4e18);
+      const liquidatorOldLoanStableRate = BigInt(0);
+      const liquidatorNewLoanStableRate = BigInt(0);
+      const updatePoolWithLiquidation = await hubPool
+        .connect(loanManager)
+        .updatePoolWithLiquidation(
+          repaidBorrowAmount,
+          violatorLoanStableRate,
+          liquidatorOldBorrowAmount,
+          liquidatorOldLoanStableRate,
+          liquidatorNewLoanStableRate
+        );
+      await expect(updatePoolWithLiquidation).to.emit(hubPool, "InterestRatesUpdated");
+      await verifyInterestRates(hubPool);
+    });
+
+    it("Should successfully update pool with liquidation when stable borrow and no existing liquidator borrow", async () => {
+      const { loanManager, hubPool } = await loadFixture(deployHubPoolFixture);
+
+      // set pool data with interest data
+      const depositTotalAmount = BigInt(10e18);
+      const stableBorrowTotalAmount = BigInt(1e18);
+      const stableInterestRate = BigInt(0.2e18);
+      const stableAverageInterestRate = BigInt(0.1e18);
+      const poolData = getInitialPoolData();
+      poolData.depositData.totalAmount = depositTotalAmount;
+      poolData.stableBorrowData.totalAmount = stableBorrowTotalAmount;
+      poolData.stableBorrowData.interestRate = stableInterestRate;
+      poolData.stableBorrowData.averageInterestRate = stableAverageInterestRate;
+      await hubPool.setPoolData(poolData);
+
+      // calculate new stable average interest rate
+      const repaidBorrowAmount = BigInt(0.35e18);
+      const violatorLoanStableRate = BigInt(0.2e18);
+      const liquidatorOldBorrowAmount = BigInt(0);
+      const liquidatorOldLoanStableRate = BigInt(0);
+      const liquidatorNewLoanStableRate = BigInt(0.2e18);
+      let newStableAverageInterestRate = calcAverageStableBorrowInterestRate(
+        repaidBorrowAmount,
+        BigInt(0),
+        violatorLoanStableRate,
+        violatorLoanStableRate,
+        stableBorrowTotalAmount,
+        stableAverageInterestRate
+      );
+      newStableAverageInterestRate = calcAverageStableBorrowInterestRate(
+        liquidatorOldBorrowAmount,
+        repaidBorrowAmount + liquidatorOldBorrowAmount,
+        liquidatorOldLoanStableRate,
+        liquidatorNewLoanStableRate,
+        stableBorrowTotalAmount - repaidBorrowAmount,
+        newStableAverageInterestRate
+      );
+
+      // update pool with liquidation
+      const updatePoolWithLiquidation = await hubPool
+        .connect(loanManager)
+        .updatePoolWithLiquidation(
+          repaidBorrowAmount,
+          violatorLoanStableRate,
+          liquidatorOldBorrowAmount,
+          liquidatorOldLoanStableRate,
+          liquidatorNewLoanStableRate
+        );
+      expect((await hubPool.getStableBorrowData())[10]).to.equal(newStableAverageInterestRate);
+      await expect(updatePoolWithLiquidation).to.emit(hubPool, "InterestRatesUpdated");
+      await verifyInterestRates(hubPool);
+    });
+
+    it("Should successfully update pool with liquidation when stable borrow and existing liquidator borrow", async () => {
+      const { loanManager, hubPool } = await loadFixture(deployHubPoolFixture);
+
+      // set pool data with interest data
+      const depositTotalAmount = BigInt(10e18);
+      const stableBorrowTotalAmount = BigInt(2e18);
+      const stableInterestRate = BigInt(0.2e18);
+      const stableAverageInterestRate = BigInt(0.1e18);
+      const poolData = getInitialPoolData();
+      poolData.depositData.totalAmount = depositTotalAmount;
+      poolData.stableBorrowData.totalAmount = stableBorrowTotalAmount;
+      poolData.stableBorrowData.interestRate = stableInterestRate;
+      poolData.stableBorrowData.averageInterestRate = stableAverageInterestRate;
+      await hubPool.setPoolData(poolData);
+
+      // calculate new stable average interest rate
+      const repaidBorrowAmount = BigInt(0.5e18);
+      const violatorLoanStableRate = BigInt(0.15e18);
+      const liquidatorOldBorrowAmount = BigInt(0.5e18);
+      const liquidatorOldLoanStableRate = BigInt(0.05e18);
+      const liquidatorNewLoanStableRate = BigInt(0.2e18);
+      let newStableAverageInterestRate = calcAverageStableBorrowInterestRate(
+        repaidBorrowAmount,
+        BigInt(0),
+        violatorLoanStableRate,
+        violatorLoanStableRate,
+        stableBorrowTotalAmount,
+        stableAverageInterestRate
+      );
+      newStableAverageInterestRate = calcAverageStableBorrowInterestRate(
+        liquidatorOldBorrowAmount,
+        repaidBorrowAmount + liquidatorOldBorrowAmount,
+        liquidatorOldLoanStableRate,
+        liquidatorNewLoanStableRate,
+        stableBorrowTotalAmount - repaidBorrowAmount,
+        newStableAverageInterestRate
+      );
+
+      // update pool with liquidation
+      const updatePoolWithLiquidation = await hubPool
+        .connect(loanManager)
+        .updatePoolWithLiquidation(
+          repaidBorrowAmount,
+          violatorLoanStableRate,
+          liquidatorOldBorrowAmount,
+          liquidatorOldLoanStableRate,
+          liquidatorNewLoanStableRate
+        );
+      expect((await hubPool.getStableBorrowData())[10]).to.equal(newStableAverageInterestRate);
       await expect(updatePoolWithLiquidation).to.emit(hubPool, "InterestRatesUpdated");
       await verifyInterestRates(hubPool);
     });
@@ -1462,7 +1678,20 @@ describe("HubPool (unit tests)", () => {
       const { user, hubPool } = await loadFixture(deployHubPoolFixture);
 
       // update pool with liquidation
-      const updatePoolWithLiquidation = hubPool.connect(user).updatePoolWithLiquidation();
+      const repaidBorrowAmount = BigInt(1);
+      const violatorLoanStableRate = BigInt(0);
+      const liquidatorOldBorrowAmount = BigInt(1);
+      const liquidatorOldLoanStableRate = BigInt(0);
+      const liquidatorNewLoanStableRate = BigInt(0);
+      const updatePoolWithLiquidation = hubPool
+        .connect(user)
+        .updatePoolWithLiquidation(
+          repaidBorrowAmount,
+          violatorLoanStableRate,
+          liquidatorOldBorrowAmount,
+          liquidatorOldLoanStableRate,
+          liquidatorNewLoanStableRate
+        );
       await expect(updatePoolWithLiquidation)
         .to.be.revertedWithCustomError(hubPool, "AccessControlUnauthorizedAccount")
         .withArgs(user.address, LOAN_MANAGER_ROLE);
@@ -1692,9 +1921,11 @@ describe("HubPool (unit tests)", () => {
       const loanBorrowAmount = BigInt(0.1e18);
       const switchingToStable = false;
       const oldLoanBorrrowStableRate = BigInt(0.14732532e18);
-      const newStableAverageInterestRate = calcDecreasingAverageStableBorrowInterestRate(
+      const newStableAverageInterestRate = calcAverageStableBorrowInterestRate(
         loanBorrowAmount,
+        BigInt(0),
         oldLoanBorrrowStableRate,
+        BigInt(0),
         stableBorrowTotalAmount,
         stableAverageInterestRate
       );
@@ -1771,8 +2002,10 @@ describe("HubPool (unit tests)", () => {
       const loanBorrowAmount = BigInt(0.1e18);
       const switchingToStable = true;
       const oldLoanBorrowStableRate = BigInt(0);
-      const newStableAverageInterestRate = calcIncreasingAverageStableBorrowInterestRate(
+      const newStableAverageInterestRate = calcAverageStableBorrowInterestRate(
+        BigInt(0),
         loanBorrowAmount,
+        BigInt(0),
         stableInterestRate,
         stableBorrowTotalAmount,
         stableAverageInterestRate
@@ -1931,63 +2164,6 @@ describe("HubPool (unit tests)", () => {
     });
   });
 
-  describe("Update Pool With Rebalance Up", () => {
-    it("Should successfully update pool with rebalance up", async () => {
-      const { loanManager, hubPool } = await loadFixture(deployHubPoolFixture);
-
-      // set pool data
-      const depositTotalAmount = BigInt(0.5e18);
-      const stableBorrowTotalAmount = BigInt(0.3254823e18);
-      const stableInterestRate = BigInt(0.1420009e18);
-      const stableAverageInterestRate = BigInt(0.19014e18);
-      const poolData = getInitialPoolData();
-      poolData.depositData.totalAmount = depositTotalAmount;
-      poolData.stableBorrowData.totalAmount = stableBorrowTotalAmount;
-      poolData.stableBorrowData.interestRate = stableInterestRate;
-      poolData.stableBorrowData.averageInterestRate = stableAverageInterestRate;
-      await hubPool.setPoolData(poolData);
-
-      // calculate new stable average interest rate
-      const loanBorrowAmount = BigInt(0.1e18);
-      const oldLoanStableInterestRate = BigInt(0.01484238e18);
-      let newStableAverageInterestRate = calcDecreasingAverageStableBorrowInterestRate(
-        loanBorrowAmount,
-        oldLoanStableInterestRate,
-        stableBorrowTotalAmount,
-        stableAverageInterestRate
-      );
-      newStableAverageInterestRate = calcIncreasingAverageStableBorrowInterestRate(
-        loanBorrowAmount,
-        stableInterestRate,
-        stableBorrowTotalAmount - loanBorrowAmount,
-        newStableAverageInterestRate
-      );
-
-      // update pool with rebalance up
-      const updatePoolWithRebalanceUp = await hubPool
-        .connect(loanManager)
-        .updatePoolWithRebalanceUp(loanBorrowAmount, oldLoanStableInterestRate);
-      expect((await hubPool.getStableBorrowData())[8]).to.equal(poolData.stableBorrowData.totalAmount);
-      expect((await hubPool.getStableBorrowData())[10]).to.equal(newStableAverageInterestRate);
-      await expect(updatePoolWithRebalanceUp).to.emit(hubPool, "InterestRatesUpdated");
-      await verifyInterestRates(hubPool);
-    });
-
-    it("Should fail to update pool with rebalance up when sender is not loan manager", async () => {
-      const { user, hubPool } = await loadFixture(deployHubPoolFixture);
-
-      // update pool with rebalance up
-      const loanBorrowAmount = BigInt(0.1e18);
-      const oldLoanStableInterestRate = BigInt(0.01484238e18);
-      const updatePoolWithRebalanceUp = hubPool
-        .connect(user)
-        .updatePoolWithRebalanceUp(loanBorrowAmount, oldLoanStableInterestRate);
-      await expect(updatePoolWithRebalanceUp)
-        .to.be.revertedWithCustomError(hubPool, "AccessControlUnauthorizedAccount")
-        .withArgs(user.address, LOAN_MANAGER_ROLE);
-    });
-  });
-
   describe("Prepare Pool For Rebalance Down", () => {
     it("Should successfully prepare pool for rebalance down", async () => {
       const { admin, user, hubPool } = await loadFixture(deployHubPoolFixture);
@@ -2050,8 +2226,46 @@ describe("HubPool (unit tests)", () => {
     });
   });
 
-  describe("Update Pool With Rebalance Down", () => {
-    it("Should successfully update pool with rebalance down", async () => {
+  describe("Update Pool With Rebalance", () => {
+    it("Should successfully update pool when rebalancing up", async () => {
+      const { loanManager, hubPool } = await loadFixture(deployHubPoolFixture);
+
+      // set pool data
+      const depositTotalAmount = BigInt(0.5e18);
+      const stableBorrowTotalAmount = BigInt(0.3254823e18);
+      const stableInterestRate = BigInt(0.2420009e18);
+      const stableAverageInterestRate = BigInt(0.19014e18);
+      const poolData = getInitialPoolData();
+      poolData.depositData.totalAmount = depositTotalAmount;
+      poolData.stableBorrowData.totalAmount = stableBorrowTotalAmount;
+      poolData.stableBorrowData.interestRate = stableInterestRate;
+      poolData.stableBorrowData.averageInterestRate = stableAverageInterestRate;
+      await hubPool.setPoolData(poolData);
+
+      // calculate new stable average interest rate
+      const loanBorrowAmount = BigInt(0.1e18);
+      const oldLoanStableInterestRate = BigInt(0.2035411e18);
+      const newStableAverageInterestRate = calcAverageStableBorrowInterestRate(
+        loanBorrowAmount,
+        loanBorrowAmount,
+        oldLoanStableInterestRate,
+        stableInterestRate,
+        stableBorrowTotalAmount,
+        stableAverageInterestRate
+      );
+      expect(newStableAverageInterestRate).to.be.greaterThan(stableAverageInterestRate);
+
+      // update pool with rebalance
+      const updatePoolWithRebalance = await hubPool
+        .connect(loanManager)
+        .updatePoolWithRebalance(loanBorrowAmount, oldLoanStableInterestRate);
+      expect((await hubPool.getStableBorrowData())[8]).to.equal(poolData.stableBorrowData.totalAmount);
+      expect((await hubPool.getStableBorrowData())[10]).to.equal(newStableAverageInterestRate);
+      await expect(updatePoolWithRebalance).to.emit(hubPool, "InterestRatesUpdated");
+      await verifyInterestRates(hubPool);
+    });
+
+    it("Should successfully update pool when rebalancing down", async () => {
       const { loanManager, hubPool } = await loadFixture(deployHubPoolFixture);
 
       // set pool data
@@ -2069,39 +2283,36 @@ describe("HubPool (unit tests)", () => {
       // calculate new stable average interest rate
       const loanBorrowAmount = BigInt(0.1e18);
       const oldLoanStableInterestRate = BigInt(0.2035411e18);
-      let newStableAverageInterestRate = calcDecreasingAverageStableBorrowInterestRate(
+      const newStableAverageInterestRate = calcAverageStableBorrowInterestRate(
+        loanBorrowAmount,
         loanBorrowAmount,
         oldLoanStableInterestRate,
+        stableInterestRate,
         stableBorrowTotalAmount,
         stableAverageInterestRate
       );
-      newStableAverageInterestRate = calcIncreasingAverageStableBorrowInterestRate(
-        loanBorrowAmount,
-        stableInterestRate,
-        stableBorrowTotalAmount - loanBorrowAmount,
-        newStableAverageInterestRate
-      );
+      expect(newStableAverageInterestRate).to.be.lessThan(stableAverageInterestRate);
 
-      // update pool with rebalance down
-      const updatePoolWithRebalanceDown = await hubPool
+      // update pool with rebalance
+      const updatePoolWithRebalance = await hubPool
         .connect(loanManager)
-        .updatePoolWithRebalanceDown(loanBorrowAmount, oldLoanStableInterestRate);
+        .updatePoolWithRebalance(loanBorrowAmount, oldLoanStableInterestRate);
       expect((await hubPool.getStableBorrowData())[8]).to.equal(poolData.stableBorrowData.totalAmount);
       expect((await hubPool.getStableBorrowData())[10]).to.equal(newStableAverageInterestRate);
-      await expect(updatePoolWithRebalanceDown).to.emit(hubPool, "InterestRatesUpdated");
+      await expect(updatePoolWithRebalance).to.emit(hubPool, "InterestRatesUpdated");
       await verifyInterestRates(hubPool);
     });
 
-    it("Should fail to update pool with rebalance down when sender is not loan manager", async () => {
+    it("Should fail to update pool with rebalance when sender is not loan manager", async () => {
       const { user, hubPool } = await loadFixture(deployHubPoolFixture);
 
       // update pool with rebalance down
       const loanBorrowAmount = BigInt(0.1e18);
       const oldLoanStableInterestRate = BigInt(1.0935411e18);
-      const updatePoolWithRebalanceDown = hubPool
+      const updatePoolWithRebalance = hubPool
         .connect(user)
-        .updatePoolWithRebalanceDown(loanBorrowAmount, oldLoanStableInterestRate);
-      await expect(updatePoolWithRebalanceDown)
+        .updatePoolWithRebalance(loanBorrowAmount, oldLoanStableInterestRate);
+      await expect(updatePoolWithRebalance)
         .to.be.revertedWithCustomError(hubPool, "AccessControlUnauthorizedAccount")
         .withArgs(user.address, LOAN_MANAGER_ROLE);
     });
