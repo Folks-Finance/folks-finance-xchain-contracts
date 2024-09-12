@@ -115,16 +115,25 @@ library HubPoolLogic {
         borrowPoolParams.stableInterestRate = stableBorrowInterestRate;
     }
 
-    function updateWithBorrow(HubPoolState.PoolData storage pool, uint256 amount, bool isStable) external {
+    function updateWithBorrow(
+        HubPoolState.PoolData storage pool,
+        uint256 oldBorrowAmount,
+        uint256 additionalBorrowAmount,
+        uint256 oldBorrowStableRate,
+        uint256 newBorrowStableRate,
+        bool isStable
+    ) external {
         if (isStable) {
-            pool.stableBorrowData.averageInterestRate = MathUtils.calcIncreasingAverageStableBorrowInterestRate(
-                amount,
-                pool.stableBorrowData.interestRate,
+            pool.stableBorrowData.averageInterestRate = MathUtils.calcAverageStableBorrowInterestRate(
+                oldBorrowAmount,
+                oldBorrowAmount + additionalBorrowAmount,
+                oldBorrowStableRate,
+                newBorrowStableRate,
                 pool.stableBorrowData.totalAmount,
                 pool.stableBorrowData.averageInterestRate
             );
-            pool.stableBorrowData.totalAmount += amount;
-        } else pool.variableBorrowData.totalAmount += amount;
+            pool.stableBorrowData.totalAmount += additionalBorrowAmount;
+        } else pool.variableBorrowData.totalAmount += additionalBorrowAmount;
 
         pool.updateInterestRates();
     }
@@ -147,8 +156,10 @@ library HubPoolLogic {
         uint256 excessAmount
     ) external {
         if (loanStableRate > 0) {
-            pool.stableBorrowData.averageInterestRate = MathUtils.calcDecreasingAverageStableBorrowInterestRate(
+            pool.stableBorrowData.averageInterestRate = MathUtils.calcAverageStableBorrowInterestRate(
                 principalPaid,
+                0,
+                loanStableRate,
                 loanStableRate,
                 pool.stableBorrowData.totalAmount,
                 pool.stableBorrowData.averageInterestRate
@@ -169,8 +180,10 @@ library HubPoolLogic {
         uint256 loanStableRate
     ) external returns (DataTypes.RepayWithCollateralPoolParams memory repayWithCollateralPoolParams) {
         if (loanStableRate > 0) {
-            pool.stableBorrowData.averageInterestRate = MathUtils.calcDecreasingAverageStableBorrowInterestRate(
+            pool.stableBorrowData.averageInterestRate = MathUtils.calcAverageStableBorrowInterestRate(
                 principalPaid,
+                0,
+                loanStableRate,
                 loanStableRate,
                 pool.stableBorrowData.totalAmount,
                 pool.stableBorrowData.averageInterestRate
@@ -187,7 +200,38 @@ library HubPoolLogic {
         pool.updateInterestRates();
     }
 
-    function updateWithLiquidation(HubPoolState.PoolData storage pool) external {
+    function updateWithLiquidation(
+        HubPoolState.PoolData storage pool,
+        uint256 repaidBorrowAmount,
+        uint256 violatorLoanStableRate,
+        uint256 liquidatorOldBorrowAmount,
+        uint256 liquidatorOldLoanStableRate,
+        uint256 liquidatorNewLoanStableRate
+    ) external {
+        if (violatorLoanStableRate > 0) {
+            // remove the old violator stable borrow
+            uint256 averageInterestRate = MathUtils.calcAverageStableBorrowInterestRate(
+                repaidBorrowAmount,
+                0,
+                violatorLoanStableRate,
+                violatorLoanStableRate,
+                pool.stableBorrowData.totalAmount,
+                pool.stableBorrowData.averageInterestRate
+            );
+
+            // consider the new liquidator stable borrow
+            averageInterestRate = MathUtils.calcAverageStableBorrowInterestRate(
+                liquidatorOldBorrowAmount,
+                repaidBorrowAmount + liquidatorOldBorrowAmount,
+                liquidatorOldLoanStableRate,
+                liquidatorNewLoanStableRate,
+                pool.stableBorrowData.totalAmount - repaidBorrowAmount,
+                averageInterestRate
+            );
+
+            pool.stableBorrowData.averageInterestRate = averageInterestRate;
+        }
+
         pool.updateInterestRates();
     }
 
@@ -219,8 +263,10 @@ library HubPoolLogic {
         uint256 oldLoanBorrowStableRate
     ) external {
         if (switchingToStable) {
-            pool.stableBorrowData.averageInterestRate = MathUtils.calcIncreasingAverageStableBorrowInterestRate(
+            pool.stableBorrowData.averageInterestRate = MathUtils.calcAverageStableBorrowInterestRate(
+                0,
                 amount,
+                0,
                 pool.stableBorrowData.interestRate,
                 pool.stableBorrowData.totalAmount,
                 pool.stableBorrowData.averageInterestRate
@@ -228,9 +274,11 @@ library HubPoolLogic {
             pool.stableBorrowData.totalAmount += amount;
             pool.variableBorrowData.totalAmount -= amount;
         } else {
-            pool.stableBorrowData.averageInterestRate = MathUtils.calcDecreasingAverageStableBorrowInterestRate(
+            pool.stableBorrowData.averageInterestRate = MathUtils.calcAverageStableBorrowInterestRate(
                 amount,
+                0,
                 oldLoanBorrowStableRate,
+                0,
                 pool.stableBorrowData.totalAmount,
                 pool.stableBorrowData.averageInterestRate
             );
@@ -268,36 +316,6 @@ library HubPoolLogic {
         borrowPoolParams.stableInterestRate = pool.stableBorrowData.interestRate;
     }
 
-    function updateWithRebalanceUp(
-        HubPoolState.PoolData storage pool,
-        uint256 amount,
-        uint256 oldLoanStableInterestRate
-    ) external {
-        uint256 stableBorrowAverageInterestRate = pool.stableBorrowData.averageInterestRate;
-        uint256 stableBorrowTotalAmount = pool.stableBorrowData.totalAmount;
-
-        stableBorrowAverageInterestRate = MathUtils.calcDecreasingAverageStableBorrowInterestRate(
-            amount,
-            oldLoanStableInterestRate,
-            stableBorrowTotalAmount,
-            stableBorrowAverageInterestRate
-        );
-        stableBorrowTotalAmount -= amount;
-
-        stableBorrowAverageInterestRate = MathUtils.calcIncreasingAverageStableBorrowInterestRate(
-            amount,
-            pool.stableBorrowData.interestRate,
-            stableBorrowTotalAmount,
-            stableBorrowAverageInterestRate
-        );
-        stableBorrowTotalAmount += amount;
-
-        pool.stableBorrowData.averageInterestRate = stableBorrowAverageInterestRate;
-        pool.stableBorrowData.totalAmount = stableBorrowTotalAmount;
-
-        pool.updateInterestRates();
-    }
-
     function prepareForRebalanceDown(
         HubPoolState.PoolData storage pool
     ) external returns (DataTypes.RebalanceDownPoolParams memory rebalanceDownPoolParams) {
@@ -313,7 +331,7 @@ library HubPoolLogic {
         );
     }
 
-    function updateWithRebalanceDown(
+    function updateWithRebalance(
         HubPoolState.PoolData storage pool,
         uint256 amount,
         uint256 oldLoanStableInterestRate
@@ -321,21 +339,14 @@ library HubPoolLogic {
         uint256 stableBorrowAverageInterestRate = pool.stableBorrowData.averageInterestRate;
         uint256 stableBorrowTotalAmount = pool.stableBorrowData.totalAmount;
 
-        stableBorrowAverageInterestRate = MathUtils.calcDecreasingAverageStableBorrowInterestRate(
+        stableBorrowAverageInterestRate = MathUtils.calcAverageStableBorrowInterestRate(
+            amount,
             amount,
             oldLoanStableInterestRate,
-            stableBorrowTotalAmount,
-            stableBorrowAverageInterestRate
-        );
-        stableBorrowTotalAmount -= amount;
-
-        stableBorrowAverageInterestRate = MathUtils.calcIncreasingAverageStableBorrowInterestRate(
-            amount,
             pool.stableBorrowData.interestRate,
             stableBorrowTotalAmount,
             stableBorrowAverageInterestRate
         );
-        stableBorrowTotalAmount += amount;
 
         pool.stableBorrowData.averageInterestRate = stableBorrowAverageInterestRate;
         pool.stableBorrowData.totalAmount = stableBorrowTotalAmount;

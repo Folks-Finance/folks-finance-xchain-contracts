@@ -61,21 +61,32 @@ library UserLoanLogic {
         LoanManagerState.UserLoan storage loan,
         DataTypes.UpdateUserLoanBorrowParams memory params,
         bool isStable
-    ) external {
+    ) external returns (uint256 oldBorrowAmount, uint256 oldBorrowStableRate, uint256 newBorrowStableRate) {
         LoanManagerState.UserLoanBorrow storage loanBorrow = loan.borrows[params.poolId];
 
         // ignore increase by zero amount
-        if (params.amount == 0) return;
+        if (params.amount == 0) return (loanBorrow.amount, loanBorrow.stableInterestRate, 0);
 
         // if the balance was prev zero then initialise, else update
         if (loanBorrow.balance == 0) {
+            // oldBorrowAmount and oldBorrowStableRate are zero
             initLoanBorrowInterests(loanBorrow, params, isStable);
+            if (isStable) newBorrowStableRate = loanBorrow.stableInterestRate;
+
             loanBorrow.amount = params.amount;
             loanBorrow.balance = params.amount;
             loan.borPools.push(params.poolId);
         } else {
             if (isStable != loanBorrow.stableInterestRate > 0) revert BorrowTypeMismatch();
-            updateLoanBorrowInterests(loanBorrow, params);
+
+            oldBorrowAmount = loanBorrow.amount;
+            if (isStable) {
+                oldBorrowStableRate = loanBorrow.stableInterestRate;
+                updateLoanBorrowInterests(loanBorrow, params);
+                newBorrowStableRate = loanBorrow.stableInterestRate;
+            } else {
+                updateLoanBorrowInterests(loanBorrow, params);
+            }
 
             // update amount
             loanBorrow.amount += params.amount;
@@ -117,19 +128,19 @@ library UserLoanLogic {
     /// @dev Calc the borrow balance and amount to repay and decrease them from violator borrow
     /// @param loan The user loan to transfer the borrow from
     /// @param poolId The pool ID of the borrow
-    /// @param repayBorrowAmount The amount to repay
+    /// @param repayBorrowBalance The amount to repay
     /// @return repaidBorrowAmount The borrow amount repaid
     /// @return repaidBorrowBalance The borrow balance repaid
     function transferBorrowFromViolator(
         LoanManagerState.UserLoan storage loan,
         uint8 poolId,
-        uint256 repayBorrowAmount
+        uint256 repayBorrowBalance
     ) external returns (uint256 repaidBorrowAmount, uint256 repaidBorrowBalance, uint256 loanStableRate) {
         LoanManagerState.UserLoanBorrow storage loanBorrow = loan.borrows[poolId];
 
-        // violator loanBorrow has beed updated in prepareLiquidation
+        // violator loanBorrow has been updated in prepareLiquidation
 
-        repaidBorrowBalance = repayBorrowAmount;
+        repaidBorrowBalance = repayBorrowBalance;
         repaidBorrowAmount = Math.min(repaidBorrowBalance, loanBorrow.amount);
         loanStableRate = loanBorrow.stableInterestRate;
 
@@ -150,7 +161,14 @@ library UserLoanLogic {
         uint256 repaidBorrowAmount,
         uint256 repaidBorrowBalance,
         uint256 violatorStableRate
-    ) external {
+    )
+        external
+        returns (
+            uint256 liquidatorOldBorrowAmount,
+            uint256 liquidatorOldLoanStableRate,
+            uint256 liquidatorNewLoanStableRate
+        )
+    {
         LoanManagerState.UserLoanBorrow storage loanBorrow = loan.borrows[params.poolId];
         bool isStable = violatorStableRate > 0;
 
@@ -160,17 +178,25 @@ library UserLoanLogic {
         // if the balance was prev zero then initialise, else update
         if (loanBorrow.balance == 0) {
             initLoanBorrowInterests(loanBorrow, params, isStable);
-            if (isStable) loanBorrow.stableInterestRate = violatorStableRate;
+            if (isStable) {
+                // liquidatorOldBorrowAmount and liquidatorOldLoanStableRate are zero
+                liquidatorNewLoanStableRate = violatorStableRate;
+                loanBorrow.stableInterestRate = liquidatorNewLoanStableRate;
+            }
             loan.borPools.push(params.poolId);
         } else {
             updateLoanBorrowInterests(loanBorrow, params);
-            if (isStable)
-                loanBorrow.stableInterestRate = MathUtils.calcAverageStableRate(
-                    loanBorrow.amount,
+            if (isStable) {
+                liquidatorOldBorrowAmount = loanBorrow.amount;
+                liquidatorOldLoanStableRate = loanBorrow.stableInterestRate;
+                liquidatorNewLoanStableRate = MathUtils.calcLiquidatorAverageStableRate(
+                    loanBorrow.balance,
                     loanBorrow.stableInterestRate,
-                    repaidBorrowAmount,
+                    repaidBorrowBalance,
                     violatorStableRate
                 );
+                loanBorrow.stableInterestRate = liquidatorNewLoanStableRate;
+            }
         }
         loanBorrow.amount += repaidBorrowAmount;
         loanBorrow.balance += repaidBorrowBalance;

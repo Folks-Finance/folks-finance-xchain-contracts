@@ -335,42 +335,27 @@ library MathUtils {
             (borrowBalanceAtT + amount);
     }
 
-    /// @dev Calculates the average stable borrow interest rate after a stable borrow increase.
-    /// @param borrowAmount The amount of borrow increase.
-    /// @param borrowStableRate 18dp - The stable borrow interest rate of the borrow increase.
+    /// @dev Calculates the average stable borrow interest rate after a borrow change.
+    /// @param oldBorrowAmount The amount of borrow before the increase.
+    /// @param newBorrowAmount The amount of borrow after the increase.
+    /// @param oldBorrowStableRate 18dp - The stable borrow interest rate of the borrow before the increase.
+    /// @param newBorrowStableRate 18dp - The stable borrow interest rate of the borrow after the increase.
     /// @param totalStableDebt The total stable debt of the pool.
     /// @param averageBorrowStableRate 18dp - The average stable borrow interest rate of the pool.
     /// @return 18dp - The increase in the stable borrow interest rate.
-    function calcIncreasingAverageStableBorrowInterestRate(
-        uint256 borrowAmount,
-        uint256 borrowStableRate,
+    function calcAverageStableBorrowInterestRate(
+        uint256 oldBorrowAmount,
+        uint256 newBorrowAmount,
+        uint256 oldBorrowStableRate,
+        uint256 newBorrowStableRate,
         uint256 totalStableDebt,
         uint256 averageBorrowStableRate
     ) internal pure returns (uint256) {
-        return
-            (totalStableDebt.mulDiv(averageBorrowStableRate, ONE_18_DP, Math.Rounding.Ceil) +
-                borrowAmount.mulDiv(borrowStableRate, ONE_18_DP, Math.Rounding.Ceil)).mulDiv(
-                    ONE_18_DP,
-                    totalStableDebt + borrowAmount
-                );
-    }
-
-    /// @dev Calculates the average stable borrow interest rate after a stable borrow decrease.
-    /// @param borrowAmount The amount of borrow decrease.
-    /// @param borrowStableRate 18dp - The stable borrow interest rate of the borrow decrease.
-    /// @param totalStableDebt The total stable debt of the pool.
-    /// @param averageBorrowStableRate 18dp - The average stable borrow interest rate of the pool.
-    /// @return 18dp - The decrease in the stable borrow interest rate.
-    function calcDecreasingAverageStableBorrowInterestRate(
-        uint256 borrowAmount,
-        uint256 borrowStableRate,
-        uint256 totalStableDebt,
-        uint256 averageBorrowStableRate
-    ) internal pure returns (uint256) {
-        uint256 newTotalStableDebt = totalStableDebt - borrowAmount;
-        (, uint256 overallInterestAmount) = totalStableDebt
-            .mulDiv(averageBorrowStableRate, ONE_18_DP, Math.Rounding.Ceil)
-            .trySub(borrowAmount.mulDiv(borrowStableRate, ONE_18_DP));
+        uint256 newTotalStableDebt = totalStableDebt + newBorrowAmount - oldBorrowAmount;
+        (, uint256 overallInterestAmount) = (totalStableDebt.mulDiv(averageBorrowStableRate, ONE_18_DP) +
+            newBorrowAmount.mulDiv(newBorrowStableRate, ONE_18_DP)).trySub(
+                oldBorrowAmount.mulDiv(oldBorrowStableRate, ONE_18_DP, Math.Rounding.Ceil)
+            );
         return newTotalStableDebt > 0 ? overallInterestAmount.mulDiv(ONE_18_DP, newTotalStableDebt) : 0;
     }
 
@@ -505,7 +490,7 @@ library MathUtils {
             );
     }
 
-    /// @dev Calculates, from the collateral amount with the liquidation bonus, the repay borrow amount.
+    /// @dev Calculates, from the collateral amount with the liquidation bonus, the repay borrow balance.
     /// @param collAmount The amount of collateral asset.
     /// @param collPrice 18dp - The price of the collateral asset.
     /// @param collDecimals The decimals of the collateral asset.
@@ -513,7 +498,7 @@ library MathUtils {
     /// @param borrDecimals The decimals of the borrow asset.
     /// @param liquidationBonus 4dp - The liquidation bonus.
     /// @return The repay borrow amount.
-    function convToRepayBorrowAmount(
+    function convToRepayBorrowBalance(
         uint256 collAmount,
         uint256 collPrice,
         uint8 collDecimals,
@@ -530,22 +515,22 @@ library MathUtils {
     }
 
     /// @dev Calculates the average stable rate between two loans.
-    /// @param liquidatorAmount The amount of the liquidator loan.
+    /// @param liquidatorBorrowBalance The borrow balance of the liquidator loan.
     /// @param liquidatorStableRate 18dp - The stable rate of the liquidator loan.
-    /// @param violatorAmount The amount of the violator loan.
+    /// @param repaidBorrowBalance The borrow balance repaid of the violator loan.
     /// @param violatorStableRate 18dp - The stable rate of the violator loan.
     /// @return 18dp - The average stable rate.
-    function calcAverageStableRate(
-        uint256 liquidatorAmount,
+    function calcLiquidatorAverageStableRate(
+        uint256 liquidatorBorrowBalance,
         uint256 liquidatorStableRate,
-        uint256 violatorAmount,
+        uint256 repaidBorrowBalance,
         uint256 violatorStableRate
     ) internal pure returns (uint256) {
         return
-            (liquidatorAmount.mulDiv(liquidatorStableRate, ONE_18_DP) +
-                violatorAmount.mulDiv(violatorStableRate, ONE_18_DP)).mulDiv(
+            (liquidatorBorrowBalance.mulDiv(liquidatorStableRate, ONE_18_DP) +
+                repaidBorrowBalance.mulDiv(violatorStableRate, ONE_18_DP)).mulDiv(
                     ONE_18_DP,
-                    liquidatorAmount + violatorAmount
+                    liquidatorBorrowBalance + repaidBorrowBalance
                 );
     }
 

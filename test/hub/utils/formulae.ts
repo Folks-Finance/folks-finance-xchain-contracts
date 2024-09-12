@@ -376,45 +376,28 @@ function calcStableInterestRate(bbt: bigint, amount: bigint, sbirtn1: bigint, sb
 }
 
 /**
- * Calculates the average stable borrow interest rate after a stable borrow increase.
- * @param borrowAmount (0dp)
- * @param borrowStableRate (18dp)
+ * Calculates the average stable borrow interest rate after a borrow change.
+ * @param oldBorrowAmount (0dp)
+ * @param newBorrowAmount (0dp)
+ * @param oldBorrowStableRate (18dp)
+ * @param newBorrowStableRate (18dp)
  * @param totalStableDebt (0dp)
  * @param averageBorrowStableRate (18dp)
  * @returns averageStableBorrowInterestRate (18dp)
  */
-function calcIncreasingAverageStableBorrowInterestRate(
-  borrowAmount: bigint,
-  borrowStableRate: bigint,
+function calcAverageStableBorrowInterestRate(
+  oldBorrowAmount: bigint,
+  newBorrowAmount: bigint,
+  oldBorrowStableRate: bigint,
+  newBorrowStableRate: bigint,
   totalStableDebt: bigint,
   averageBorrowStableRate: bigint
 ): bigint {
-  return divScale(
-    mulScaleRoundUp(totalStableDebt, averageBorrowStableRate, ONE_18_DP) +
-      mulScaleRoundUp(borrowAmount, borrowStableRate, ONE_18_DP),
-    totalStableDebt + borrowAmount,
-    ONE_18_DP
-  );
-}
-
-/**
- * Calculates the average stable borrow interest rate after a stable borrow decrease.
- * @param borrowAmount (0dp)
- * @param borrowStableRate (18dp)
- * @param totalStableDebt (0dp)
- * @param averageBorrowStableRate (18dp)
- * @returns averageStableBorrowInterestRate (18dp)
- */
-function calcDecreasingAverageStableBorrowInterestRate(
-  borrowAmount: bigint,
-  borrowStableRate: bigint,
-  totalStableDebt: bigint,
-  averageBorrowStableRate: bigint
-): bigint {
-  const newTotalStableDebt = totalStableDebt - borrowAmount;
+  const newTotalStableDebt = totalStableDebt + newBorrowAmount - oldBorrowAmount;
   const overallInterestAmount = maximum(
-    mulScaleRoundUp(totalStableDebt, averageBorrowStableRate, ONE_18_DP) -
-      mulScale(borrowAmount, borrowStableRate, ONE_18_DP),
+    mulScale(totalStableDebt, averageBorrowStableRate, ONE_18_DP) +
+      mulScale(newBorrowAmount, newBorrowStableRate, ONE_18_DP) -
+      mulScaleRoundUp(oldBorrowAmount, oldBorrowStableRate, ONE_18_DP),
     0n
   );
   return newTotalStableDebt > 0 ? divScale(overallInterestAmount, newTotalStableDebt, ONE_18_DP) : 0n;
@@ -547,7 +530,7 @@ function convToCollateralFAmount(
   );
 }
 /**
- * Calculates, from the collateral amount with the liquidation bonus, the repay borrow amount.
+ * Calculates, from the collateral amount with the liquidation bonus, the repay borrow balance.
  * @param collAmount (0dp)
  * @param collPrice (18dp)
  * @param collDecimals (0dp)
@@ -556,7 +539,7 @@ function convToCollateralFAmount(
  * @param liquidationBonus (4dp)
  * @return repayBorrowAmount (0dp)
  */
-function convToRepayBorrowAmount(
+function convToRepayBorrowBalance(
   collAmount: bigint,
   collPrice: bigint,
   collDecimals: bigint,
@@ -573,22 +556,23 @@ function convToRepayBorrowAmount(
 
 /**
  * Calculates the average stable rate between two loans.
- * @param borrowAmount (0dp)
- * @param borrowStableRate (18dp)
- * @param totalStableDebt (0dp)
+ * @param liquidatorBorrowBalance (0dp)
+ * @param liquidatorStableRate (18dp)
+ * @param repaidBorrowBalance (0dp)
+ * @param violatorStableRate (18dp)
  * @param averageBorrowStableRate (18dp)
  * @returns averageStableBorrowInterestRate (18dp)
  */
-function calcAverageStableRate(
-  liquidatorAmount: bigint,
+function calcLiquidatorAverageStableRate(
+  liquidatorBorrowBalance: bigint,
   liquidatorStableRate: bigint,
-  violatorAmount: bigint,
+  repaidBorrowBalance: bigint,
   violatorStableRate: bigint
 ): bigint {
   return divScale(
-    mulScale(liquidatorAmount, liquidatorStableRate, ONE_18_DP) +
-      mulScale(violatorAmount, violatorStableRate, ONE_18_DP),
-    liquidatorAmount + violatorAmount,
+    mulScale(liquidatorBorrowBalance, liquidatorStableRate, ONE_18_DP) +
+      mulScale(repaidBorrowBalance, violatorStableRate, ONE_18_DP),
+    liquidatorBorrowBalance + repaidBorrowBalance,
     ONE_18_DP
   );
 }
@@ -671,14 +655,13 @@ export {
   calcLPPrice,
   calcRetention,
   calcFlashLoanFeeAmount,
-  calcIncreasingAverageStableBorrowInterestRate,
-  calcDecreasingAverageStableBorrowInterestRate,
+  calcAverageStableBorrowInterestRate,
   calcReserveCol,
   calcBorrowValueTarget,
   convToSeizedCollateralAmount,
   convToCollateralFAmount,
-  convToRepayBorrowAmount,
-  calcAverageStableRate,
+  convToRepayBorrowBalance,
+  calcLiquidatorAverageStableRate,
   calcRewardIndexIncrement,
   calcAccruedRewards,
   from4DPto18DP,

@@ -90,8 +90,8 @@ library DataTypes {
     }
 
     struct LiquidationAmountParams {
-        uint256 repayBorrowAmount;
-        uint256 repayBorrowToCollateralFAmount;
+        uint256 repayBorrowBalance;
+        uint256 repayBorrowBalanceToCollateralFAmount;
         uint256 seizeCollateralFAmount;
     }
 
@@ -119,9 +119,11 @@ library DataTypes {
     }
 
     struct LiquidationBorrowTransfer {
-        uint256 amountRepaid;
-        uint256 balanceRepaid;
-        bool isStable;
+        uint256 repaidBorrowAmount;
+        uint256 violatorLoanStableRate;
+        uint256 liquidatorOldBorrowAmount;
+        uint256 liquidatorOldLoanStableRate;
+        uint256 liquidatorNewLoanStableRate;
     }
 
     struct CollateralSeizedParams {
